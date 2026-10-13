@@ -7,6 +7,7 @@ Status: pre-production. The design document is in progress; the pages under `stu
 ## Pages
 
 - `index.html`: hub page
+- `studies/3d/`: three.js study of the Angkor stratum with a day/night cycle (current direction)
 - `studies/color/`: 2.5D colour and lighting study across three strata
 - `studies/ink/`: 2.5D ink-wash study, compared with flat 2D and generic 3D
 
