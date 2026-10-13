@@ -8,8 +8,9 @@ Status: pre-production. The design document is in progress; the pages under `stu
 
 - `index.html`: hub page
 - `docs/DESIGN.md`: design document (start here)
-- `play/`: playable rules prototype (`sim.js` holds the rules and every tunable number in `CFG`)
-- `tests/sim.test.mjs`: rules tests and bot baselines (`node tests/sim.test.mjs`)
+- `grow/`: growth prototype v1, the current direction (`sim.js`: self-growing tree and procedural ruins; settings in `GCFG`)
+- `play/`: rules prototype v0, kept for comparison (`sim.js` holds the rules and every tunable number in `CFG`)
+- `tests/`: `node tests/grow.test.mjs` (growth determinism and stats), `node tests/sim.test.mjs` (v0 rules)
 - `studies/3d/`: three.js study: enclosed ruin shaft, per-run culture blend, day/night cycle (current direction)
 - `studies/color/`: 2.5D colour and lighting study across three strata
 - `studies/ink/`: 2.5D ink-wash study, compared with flat 2D and generic 3D
