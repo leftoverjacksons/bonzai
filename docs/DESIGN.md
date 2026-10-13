@@ -49,11 +49,11 @@ Tone: the fantasy is played straight. It is obviously magical (a bonsai growing 
 
 ## 3. Core loop
 
-1. The tree has one or more **growing tips**.
+1. **The tree grows by itself.** **Decided (2026-10-13, revised).** Every turn the whole tree takes one growth flush: shoots extend toward the light available to them, and new branches form naturally where there is light and room (§4.7). The player watches a tree grow; it is not a vine the player steers.
 2. You hold a **hand of 3 action cards** (§5). **Decided.**
-3. You play one card onto a target (a tip, a branch, a node, an anchor in the ruins, or empty space, depending on the card).
-4. **Every growing tip then grows one step.** **Decided** (option "1a"): the whole tree advances every turn. The card steers or modifies; it is not the only source of growth.
-5. The world clock advances one hour (§8), the hand refills, and the camera follows the highest growth.
+3. You play one card. Cards are gardening interventions in a tree that grows on its own: mostly gentle (prune, water, light, wire, pinch), plus **one sharp tool** that directly redirects the leading shoot. **Decided.**
+4. **The whole tree then grows, animated.** **Decided:** every turn shows the entire plant growing according to its conditions (light, space, obstacles). There is **no auto-run**: the player always advances turns by hand.
+5. The world clock advances (§8), the hand refills, and the camera follows the growth (§7).
 6. Repeat until the tree **stagnates** (§4.6).
 
 - **Decided:** no timer. Turns wait for the player.
@@ -80,6 +80,18 @@ Each tip has **vigor**, a growth budget. One step of growth uses vigor. Vigor co
 | **Phototropism:** growth bends toward light | Tips bend toward the brightest light opening nearby. Light reaching a tip increases its vigor. | Proposal |
 | **Back-budding** | Rooting powder makes a new bud on old wood. | Decided (from original idea) |
 | **Sagging under weight** | Long, heavy, unsupported side branches droop over turns. Tethering to the ruins holds them up. | Decided |
+
+### 4.7 Growth model
+
+**Decided (2026-10-13):** growth uses a **space colonization** model (Runions, Lane and Prusinkiewicz, 2007), adapted to light:
+- **Light points** are scattered through the open space of the ruins. Their density follows how much sky each spot can see, so sunlit courtyards are full of them, dark chambers have few, and openings (windows, holes in ceilings) pull growth toward them.
+- Each growth step, every light point within reach attracts its nearest part of the tree. Each attracted part grows a short segment toward the average direction of its light points, with a slight upward bias and a tendency to keep its heading.
+- A light point is consumed when the tree reaches it.
+- Where light comes from several directions, the tree branches. In shade there are no light points, so branches stop and buds stay dormant. Obstacles block growth; branches route around them toward light.
+- Branch thickness follows the pipe model: a branch is as thick as the branches it carries combined, so the trunk thickens as the crown grows.
+- The tree is continuous (no cell grid); the world keeps an internal map for collisions and light.
+
+**Pacing:** **Open.** The first goal is how growth looks; the speed of growth is tuned later.
 
 ### 4.4 Stalled tips
 
@@ -139,6 +151,9 @@ Initial list. Names and numbers are working values.
 ### 6.1 Setting
 
 - **Decided:** the tree grows *inside* the ruins, not in an open courtyard. Think of a vertical labyrinth or shaft: walls, galleries, arches, beams and fallen blocks all around, with **limited light** entering through gaps, windows and broken roofs.
+- **Decided (2026-10-13), structure "C":** not a single silo. The climb **alternates** between **open, sunlit spaces** (terraces, courtyards, colonnades, bridges, overhangs) and **enclosed chambers** the tree must grow through (galleries with windows, towers, ceilings with holes). The rhythm is: claustrophobic and dim, then breaking into light.
+- **Decided:** the ruins must not be too dark to enjoy. Shaded areas are rendered readable (bounced light, warmer stone, sky visible); what is dark *for the rules* is shown clearly without making the screen murky.
+- **Decided:** more obstacles than prototype v0, and they are real architecture (slabs, beams, columns, statues, chains, fallen blocks), not cubes.
 - **Decided:** the ruins have an ancient, ruinous feel and are a **blend of Atlantis, Angkor and Maya** (§10.3).
 - **Decided:** the world is effectively **unlimited in height** (§9).
 
@@ -154,16 +169,18 @@ Initial list. Names and numbers are working values.
 
 ### 6.3 Generation
 
-- **Proposal:** the shaft is generated procedurally in vertical chunks from the run's seed. Chunk templates are hand-designed to stay fair (there is always at least one route upward), then varied and dressed procedurally.
+- **Decided:** the ruins are generated procedurally from the run's seed as a vertical stack of **modules** (for example courtyard, chamber, terrace, tower), alternating open and enclosed. Module templates are hand-designed to stay fair (there is always at least one route upward, for instance a hole in every ceiling), then varied and dressed by the run's culture blend.
 - **Decided:** strata (difficulty bands) are predefined at fixed height intervals (§9).
 
 ---
 
 ## 7. Camera and controls
 
-- **Decided:** the camera is close to the tree (much closer than early studies). It follows the highest growth, so the base drops out of view as you climb.
+- **Decided:** the camera is close to the tree (much closer than early studies). It **follows growth automatically**, so the base drops out of view as you climb.
+- **Decided (2026-10-13): branch travel.** Tap a branch to put the camera on it; swipe up and down to travel along that branch toward its tips or back toward the trunk; tap another branch to jump to it. A button returns to following the growth.
+- **Proposal:** outside branch travel, a vertical swipe scrolls the view up and down the tree; horizontal drag walks around it; pinch zooms.
 - **Decided:** the view can rotate around the vertical axis; branches and obstacles hide behind each other, and rotating to see them is part of play.
-- **Proposal:** walls between the camera and the tree fade out (cut-away, as in diorama games), so the tree stays visible while still enclosed.
+- **Decided:** stone between the camera and the tree fades out (cut-away, as in diorama games), so the tree stays visible while still enclosed.
 - **Proposal:** drag to orbit, pinch to zoom, tap a card then tap a target. A small side silhouette or map shows the whole tree and where you are.
 
 ---
@@ -253,7 +270,8 @@ Initial list. Names and numbers are working values.
 |---|---|---|
 | M0 | Look studies | Done: ink, colour 2.5D, 3D. 3D chosen. |
 | M1 | Rendering slice | Organic trunk, enclosed labyrinth with limited light, readable night, culture blend per run. Done as `studies/3d`. |
-| M2 | Rules prototype | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. **Playable as `play/` (prototype v0, §18).** |
+| M2 | Rules prototype v0 | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. Done as `play/` (§18). Feedback: felt like guiding vines; growth should be natural. |
+| M2b | Growth prototype v1 | Self-growing tree (space colonization toward light), animated growth each turn, alternating ruin modules, auto-follow camera with branch travel. **In progress** as `grow/`. Cards are re-added after the growth looks right. |
 | M3 | Playable run | Cards in hand, labyrinth chunks, camera follow, strata and difficulty, day/night by turn, save and resume. |
 | M4 | Meta progression | Unlocks, gallery, hold slot. |
 | M5 | Polish and share | Audio, performance tiers, tutorial, sharing a tree by code, GitHub Pages release for friends. |
@@ -280,12 +298,18 @@ Initial list. Names and numbers are working values.
 | 2026-10-13 | Generative tones tied to growth | None; fixed music | Tree "composes" as it grows. |
 | 2026-10-13 | Day and night change the rules (sunlight only by day) | Cosmetic only | Gives the day/night cycle a strategic role. |
 | 2026-10-13 | Build a playable rules prototype before tuning strata | Tune on paper | Band height and difficulty are judged by playing. |
+| 2026-10-13 | The tree grows itself (space colonization toward light); cards tend it | Player steers every tip one cell per turn (v0) | v0 felt like guiding vines; the goal is to watch a tree grow. |
+| 2026-10-13 | Same control as v0 in spirit: gentle cards plus one sharp tool that redirects the leading shoot | Only indirect cards | Keeps one decisive move among gentle ones. |
+| 2026-10-13 | Ruin structure C: alternating open terraces and enclosed chambers | Stacked chambers only (A); open temple mountain (B); single silo | Rhythm of dark and light; fixes the darkness complaint. |
+| 2026-10-13 | Animated growth of the whole plant every turn; no auto-run | Auto-play several turns | The player wants to watch growth, in control of time. |
+| 2026-10-13 | Camera follows growth; tap a branch and swipe to travel along it | Free camera only | Lets the player explore the tree as it gets tall. |
 
 ---
 
 ## 16. Open questions
 
 1. Height interval *X* between strata, and what each stratum adds. To be decided by playing the prototype (currently 8 m).
+1b. Pacing of growth (how much the tree grows per turn) and how cards map onto the new growth model.
 2. Resolved: day and night change the rules (§8). Still open: night hazards.
 3. One rescue per run before stagnation?
 4. Card draw: uniform or weighted by situation?
@@ -312,6 +336,8 @@ Initial list. Names and numbers are working values.
 ---
 
 ## 18. Prototype v0 rules (as implemented in `play/sim.js`)
+
+**Superseded for growth** by §4.7 (feedback: too much like guiding a vine). Kept for reference; the economy ideas (sap, upkeep, day-only sunlight) may return on top of the new growth model.
 
 Every number below is a first guess, defined in one place (`CFG` in `play/sim.js`). Nothing here is final; it exists so the game can be played and tuned.
 
