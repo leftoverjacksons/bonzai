@@ -174,7 +174,8 @@ Initial list. Names and numbers are working values.
 - **TBD value:** 1 turn = 1 hour, 24 turns per day.
 - **Decided:** the tree must stay clearly visible at night (night is darker and moodier, never unreadable).
 - Night look (current study): moonlight, stars, fireflies, blossoms that glow, magical glow in the stone.
-- **Open:** whether day and night change the rules. Proposals: light openings give vigor only by day; some cards only work at night (for example moonlight bloom); certain hazards come at night.
+- **Decided:** day and night change the rules a little. In prototype v0: sunlight (and therefore sap from tips) exists only by day; at night only the roots, Lanterns and the night-only Moonbloom card feed the tree, and wood upkeep still has to be paid, so sap must be saved during the day (§18).
+- **Open:** night-only hazards; whether night should be shorter or longer than day.
 
 ---
 
@@ -251,8 +252,8 @@ Initial list. Names and numbers are working values.
 | # | Milestone | Content |
 |---|---|---|
 | M0 | Look studies | Done: ink, colour 2.5D, 3D. 3D chosen. |
-| M1 | Rendering slice | Organic trunk, enclosed labyrinth with limited light, readable night, culture blend per run. **In progress.** |
-| M2 | Rules prototype | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. |
+| M1 | Rendering slice | Organic trunk, enclosed labyrinth with limited light, readable night, culture blend per run. Done as `studies/3d`. |
+| M2 | Rules prototype | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. **Playable as `play/` (prototype v0, §18).** |
 | M3 | Playable run | Cards in hand, labyrinth chunks, camera follow, strata and difficulty, day/night by turn, save and resume. |
 | M4 | Meta progression | Unlocks, gallery, hold slot. |
 | M5 | Polish and share | Audio, performance tiers, tutorial, sharing a tree by code, GitHub Pages release for friends. |
@@ -277,13 +278,15 @@ Initial list. Names and numbers are working values.
 | 2026-10-13 | Night must stay readable | Realistic darkness | Playability on a phone. |
 | 2026-10-13 | GitHub Pages hosting (public repo) | Artifact only | Shareable with friends; artifact kept for quick tests. |
 | 2026-10-13 | Generative tones tied to growth | None; fixed music | Tree "composes" as it grows. |
+| 2026-10-13 | Day and night change the rules (sunlight only by day) | Cosmetic only | Gives the day/night cycle a strategic role. |
+| 2026-10-13 | Build a playable rules prototype before tuning strata | Tune on paper | Band height and difficulty are judged by playing. |
 
 ---
 
 ## 16. Open questions
 
-1. Height interval *X* between strata, and what each stratum adds.
-2. Do day and night change the rules (light vigor, night-only cards, night hazards)?
+1. Height interval *X* between strata, and what each stratum adds. To be decided by playing the prototype (currently 8 m).
+2. Resolved: day and night change the rules (§8). Still open: night hazards.
 3. One rescue per run before stagnation?
 4. Card draw: uniform or weighted by situation?
 5. Score: height only, or height plus a beauty bonus?
@@ -305,3 +308,36 @@ Initial list. Names and numbers are working values.
 - **Blend:** the per-run mix of Atlantis, Angkor and Maya styles.
 - **Run:** one game from a new seed until stagnation.
 - **2.5D:** 3D positions drawn as flat 2D strokes; tried and rejected.
+
+---
+
+## 18. Prototype v0 rules (as implemented in `play/sim.js`)
+
+Every number below is a first guess, defined in one place (`CFG` in `play/sim.js`). Nothing here is final; it exists so the game can be played and tuned.
+
+**Space.** The world is a grid of cells (0.4 m) inside a round shaft about 11 cells wide. The tree occupies cells; so do obstacles. Tips grow one cell per turn.
+
+**Turn.** Play one card from a hand of 3, or discard one. Then the turn resolves: income, upkeep, growth, rockfall, clock +2 hours (12 turns per day). The hand refills.
+
+**Sap.**
+- Income each turn: 1 from the roots, plus 1 for each tip standing in light. Cap 12.
+- Upkeep each turn: 1 sap per 30 cells of living wood. If it cannot be paid, every tip gets hungrier.
+- Each stuck tip drains 1 sap per turn.
+- Each growth step costs 1 sap. The highest tips are fed first (apical dominance).
+
+**Light.** A cell is sunlit by day if no stone lies within 8 cells above it (plus 2 more cells per stratum), or if it is within 3 cells inside a window facing the sun. Lanterns light a radius of 2.6 cells for 8 turns, day or night. There is no sunlight at night.
+
+**Growth.** A tip keeps its heading when the next cell is free, bends up to 45° toward a lit cell, and deflects up to 45° around obstacles. A tip with no move is stuck.
+
+**Death and the end of a run.**
+- A tip stuck for 3 turns in a row withers. A tip unfed for 4 turns in a row withers.
+- A branch that has grown 4 cells sideways sags downward unless it is tethered.
+- If no tip can grow, the player gets one turn of warning; if still none can grow, the run ends.
+
+**Obstacles.** Ledges grow from the walls; broken beams cross the shaft (their gaps narrow with height); fallen blocks appear from stratum 1 on. A 2×2 rock falls every 9 turns at first, down to every 3 turns higher up, near the highest tip; a red column shows where the next one lands two turns ahead.
+
+**Cards.** Water (+2 free growth steps for a tip), Prune (cut a branch, refund half its cells as sap, a bud forms at the cut), Rooting powder (new tip from old wood), Bend (new heading), Tether (grow toward an iron ring; +3 sap on arrival; no sag), Lantern (light for 8 turns), Moonbloom (night only, +3 sap), Shears (forced: must cut something). Draw weights shift with night (more Lanterns, Moonbloom) and height (more Shears).
+
+**Score.** Peak height reached. Trees over 4 m enter the gallery. Saves are the seed plus the list of moves; the game rebuilds by replaying them.
+
+**Measured with simple bots (40 seeds each, `tests/sim.test.mjs`).** Random play reaches 14.4 m on average over about 160 turns; a simple greedy player reaches 17.3 m. These are baselines for tuning, not targets.

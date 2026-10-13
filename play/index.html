@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonzai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: full-screen scene; HUD on top (height, band, clock, sap); hand of three cards at the bottom; overlays for help and game over. */
+:root{
+  color-scheme: dark;
+  --bg:#0c1214;
+  --fg:#f1e9d8;
+  --fg-2:#c9c0ad;
+  --glass:rgba(12,18,20,.62);
+  --glass-2:rgba(12,18,20,.86);
+  --line:rgba(241,233,216,.22);
+  --accent:#e9b065;
+  --good:#9be37a;
+  --warn:#ffb14a;
+  --bad:#ff6a55;
+  --display:"Marcellus",Georgia,serif;
+  --body:"Mulish","Segoe UI",system-ui,sans-serif;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);overflow:hidden;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--body);font-size:15px;user-select:none;-webkit-user-select:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:fixed;left:0;right:0;display:flex;gap:10px;padding-inline:12px;pointer-events:none}
+.hud > *{pointer-events:auto}
+.top{top:0;padding-top:calc(env(safe-area-inset-top,0px) + 10px);justify-content:space-between;align-items:flex-start}
+.height{display:flex;flex-direction:column;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.height .m{font-family:var(--display);font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
+.height .sub{font-size:.72rem;color:var(--fg-2);letter-spacing:.04em;font-variant-numeric:tabular-nums;margin-top:3px}
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.pill{font-variant-numeric:tabular-nums;font-size:.8rem;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 11px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap}
+.sap{display:flex;align-items:center;gap:8px}
+.bar{width:84px;height:7px;border-radius:999px;background:rgba(241,233,216,.15);overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#c9e86a,#ffd166);border-radius:999px;transition:width .4s}
+.flow{font-size:.72rem;color:var(--fg-2)}
+.menu-btn{font:inherit;font-size:.78rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer}
+#prompt{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 108px);display:flex;align-items:center;gap:10px;background:var(--glass-2);border:1px solid var(--accent);border-radius:999px;padding:6px 6px 6px 14px;font-size:.85rem;white-space:nowrap;max-width:calc(100% - 24px)}
+#prompt button{font:inherit;font-size:.78rem;font-weight:700;color:var(--fg);background:rgba(241,233,216,.1);border:1px solid var(--line);border-radius:999px;padding:5px 10px;cursor:pointer}
+#toasts{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 182px);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.toast{background:var(--glass-2);border:1px solid var(--line);border-radius:12px;padding:7px 12px;font-size:.84rem;max-width:30rem;text-align:center;transition:opacity .5s,transform .5s}
+.toast.warn{border-color:var(--warn)}
+.toast.bad{border-color:var(--bad)}
+.toast.good{border-color:var(--good)}
+.toast.out{opacity:0;transform:translateY(6px)}
+.bottom{bottom:0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px);flex-direction:column;gap:8px}
+.hand{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-width:34rem;width:100%;margin-inline:auto}
+.card{font:inherit;text-align:left;color:var(--fg);background:var(--glass-2);border:1px solid var(--line);border-radius:12px;padding:9px 10px 10px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0;min-height:104px;position:relative;overflow:hidden;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .15s,border-color .15s}
+.card::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--stripe,#888)}
+.card .n{font-family:var(--display);font-size:1.02rem;line-height:1.15;margin-top:2px}
+.card .t{font-size:.72rem;line-height:1.35;color:var(--fg-2)}
+.card[aria-pressed="true"]{border-color:var(--accent);transform:translateY(-6px);box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.card[aria-disabled="true"]{opacity:.45}
+.card.forced{border-color:var(--bad)}
+.actions{display:flex;gap:8px;justify-content:center;max-width:34rem;width:100%;margin-inline:auto}
+.actions button{font:inherit;font-size:.82rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.actions button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.actions button:disabled{opacity:.4;cursor:default}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sheet{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(6,9,10,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.sheet .box{background:var(--glass-2);border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;max-width:28rem;width:100%;max-height:calc(100% - 32px);overflow:auto;display:flex;flex-direction:column;gap:12px;box-sizing:border-box}
+.sheet h2{font-family:var(--display);font-weight:400;font-size:1.5rem;margin:0;text-wrap:balance}
+.sheet p{margin:0;color:var(--fg-2);line-height:1.55;font-size:.9rem}
+.sheet ol,.sheet ul{margin:0;padding-left:1.2em;color:var(--fg-2);line-height:1.5;font-size:.88rem;display:flex;flex-direction:column;gap:6px}
+.sheet b{color:var(--fg)}
+.sheet .row{display:flex;gap:8px;flex-wrap:wrap}
+.sheet button{font:inherit;font-size:.88rem;font-weight:700;color:var(--fg);background:rgba(241,233,216,.08);border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer}
+.sheet button.primary{background:var(--accent);color:#22180c;border-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stats div{background:rgba(241,233,216,.06);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column}
+.stats .v{font-family:var(--display);font-size:1.3rem;font-variant-numeric:tabular-nums}
+.stats .k{font-size:.68rem;color:var(--fg-2);letter-spacing:.06em;text-transform:uppercase}
+.legend{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:.84rem;color:var(--fg-2);align-items:center}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.gallery{display:flex;flex-direction:column;gap:6px;font-size:.86rem;color:var(--fg-2);font-variant-numeric:tabular-nums}
+#msg{position:fixed;inset:0;display:grid;place-items:center;font-family:var(--display);font-size:1.2rem;color:var(--fg-2);pointer-events:none;text-align:center;padding:24px}
+@media (max-width:380px){.card .t{font-size:.68rem}.card{min-height:96px;padding:8px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg">Growing…</div>
+
+<div class="hud top">
+  <div class="height">
+    <span class="m" id="h">0.0 m</span>
+    <span class="sub" id="hsub">Band 1 · best 0.0 m</span>
+    <span class="sub" id="tipsinfo"></span>
+  </div>
+  <div class="right">
+    <div class="pill" id="clock">Day 1 · 06:00 · Day</div>
+    <div class="pill sap" title="Sap pays for growth"><span>Sap <b id="sapv">4</b></span><span class="bar"><i id="sapbar" style="width:30%"></i></span><span class="flow" id="flow"></span></div>
+    <button type="button" class="menu-btn" id="menu">Menu</button>
+  </div>
+</div>
+
+<div id="prompt" hidden><span id="prompttext"></span><button type="button" id="cancel">Cancel</button></div>
+<div id="toasts" aria-live="polite"></div>
+
+<div class="hud bottom">
+  <div class="hand" id="hand"></div>
+  <div class="actions">
+    <button type="button" id="discard" disabled>Discard &amp; pass</button>
+    <button type="button" id="lightbtn" aria-pressed="false">Show light</button>
+  </div>
+</div>
+
+<div class="sheet" id="help" hidden>
+  <div class="box" role="dialog" aria-labelledby="helpt">
+    <h2 id="helpt">How to play</h2>
+    <ol>
+      <li><b>Each turn, play one card</b> (or discard one). Then every growing tip grows one cell.</li>
+      <li><b>Growing costs sap.</b> The roots give 1 sap a turn, and each tip in light gives 1 more. Sunlight only reaches tips with open space above them or near a sunlit window.</li>
+      <li><b>Night changes the rules.</b> No sunlight at night: only roots, Lanterns and Moonbloom help. Save sap during the day.</li>
+      <li><b>Wood costs upkeep.</b> Every 30 cells of wood costs 1 sap a turn, so a taller tree needs more light.</li>
+      <li><b>Tips die</b> if stuck for 3 turns or unfed for 4. Long sideways branches sag unless tethered to an iron ring.</li>
+      <li><b>Rocks fall</b> into the shaft. A red marker shows where the next one lands.</li>
+      <li>If no tip can grow, you get one turn of warning, then the run ends. <b>Climb as high as you can.</b></li>
+    </ol>
+    <div class="legend">
+      <span class="dot" style="background:#ffd166"></span><span>Tip in light (earns sap)</span>
+      <span class="dot" style="background:#9be37a"></span><span>Tip in shade</span>
+      <span class="dot" style="background:#ffb14a"></span><span>Tip about to die</span>
+      <span class="dot" style="background:#ff6a55"></span><span>Stuck tip</span>
+      <span class="dot" style="background:rgba(255,255,255,.55)"></span><span>Where a tip grows next</span>
+    </div>
+    <p>Drag to walk around the tree, pinch to zoom. Prototype: every number is a first guess.</p>
+    <div class="row"><button type="button" class="primary" id="helpok">Play</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="menusheet" hidden>
+  <div class="box" role="dialog" aria-labelledby="menut">
+    <h2 id="menut">Bonzai</h2>
+    <p id="runinfo"></p>
+    <div class="row">
+      <button type="button" id="m-help">How to play</button>
+      <button type="button" id="m-glow" aria-pressed="true">Glow</button>
+      <button type="button" id="m-new">New tree</button>
+    </div>
+    <div class="row" id="confirmnew" hidden>
+      <p>Abandon this tree and plant a new one?</p>
+      <button type="button" class="primary" id="m-new-yes">Plant new tree</button>
+      <button type="button" id="m-new-no">Keep this tree</button>
+    </div>
+    <h2 style="font-size:1.1rem">Gallery</h2>
+    <div class="gallery" id="gallery"></div>
+    <div class="row"><button type="button" class="primary" id="m-close">Back to the tree</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="over" hidden>
+  <div class="box" role="dialog" aria-labelledby="overt">
+    <h2 id="overt">The tree can grow no further</h2>
+    <div class="stats">
+      <div><span class="v" id="o-h">0 m</span><span class="k">Height</span></div>
+      <div><span class="v" id="o-t">0</span><span class="k">Turns</span></div>
+      <div><span class="v" id="o-b">0 m</span><span class="k">Best</span></div>
+    </div>
+    <p id="o-note"></p>
+    <div class="row"><button type="button" class="primary" id="o-new">Plant a new tree</button><button type="button" id="o-look">Look around</button></div>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
