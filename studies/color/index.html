@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonzai Colour Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: one column. The living scene is the hero; stratum picker and notes follow. Single committed dark look so the scene's colour carries the page. */
+:root{
+  color-scheme: dark;
+  --bg:#10191a;
+  --bg-2:#172324;
+  --fg:#ece3d1;
+  --fg-2:#a9a293;
+  --line:rgba(236,227,209,.16);
+  --accent:#e2a75a;
+  --display:"Marcellus","Trajan Pro",Georgia,serif;
+  --body:"Mulish","Segoe UI",system-ui,sans-serif;
+}
+html,body{background:var(--bg);color:var(--fg);margin:0}
+body{font-family:var(--body);font-size:16px;line-height:1.65;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{max-width:46rem;margin:0 auto;padding-inline:16px;padding-block:24px 64px;display:flex;flex-direction:column;gap:36px}
+header{display:flex;flex-direction:column;gap:10px}
+.eyebrow{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--fg-2);font-weight:600}
+.eyebrow a{color:inherit}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(1.9rem,6vw,2.7rem);line-height:1.12;margin:0;text-wrap:balance}
+h2{font-family:var(--display);font-weight:400;font-size:1.4rem;line-height:1.3;margin:0;text-wrap:balance}
+p{margin:0;max-width:65ch}
+.lede{color:var(--fg-2)}
+section{display:flex;flex-direction:column;gap:12px}
+
+.demo{display:flex;flex-direction:column;gap:12px}
+.stage{position:relative;width:100%;height:min(72svh,680px);min-height:460px;overflow:hidden;border-radius:4px;background:#0b1214}
+.stage:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:pan-y;cursor:grab;display:block}
+#cv.grabbing{cursor:grabbing}
+.hint{position:absolute;left:14px;top:12px;font-size:.78rem;color:rgba(255,250,240,.82);text-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;transition:opacity .6s;max-width:62%}
+.fps{position:absolute;left:14px;bottom:10px;font-size:.7rem;color:rgba(255,250,240,.7);text-shadow:0 1px 2px rgba(0,0,0,.6);font-variant-numeric:tabular-nums;pointer-events:none}
+.strata{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.strata button{font:inherit;text-align:left;background:var(--bg-2);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:0}
+.strata button .n{font-family:var(--display);font-size:1rem;line-height:1.2}
+.strata button .c{font-size:.74rem;color:var(--fg-2);letter-spacing:.04em}
+.strata button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.ghost{font:inherit;font-size:.86rem;background:transparent;color:var(--fg-2);border:1px solid var(--line);border-radius:4px;padding:7px 12px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.caption{font-size:.92rem;color:var(--fg-2);min-height:5em}
+.seed{font-variant-numeric:tabular-nums}
+ul.plain{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:6px;max-width:65ch}
+ul.plain li::marker{color:var(--accent)}
+b{color:var(--fg);font-weight:700}
+footer{font-size:.8rem;color:var(--fg-2);border-top:1px solid var(--line);padding-top:14px}
+footer a{color:var(--fg-2)}
+@media (max-width:420px){.strata button{padding:9px 9px}.strata button .n{font-size:.92rem}}
+@media (prefers-reduced-motion: reduce){.hint{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><a href="../../">Bonzai</a> · colour study</div>
+    <h1>Three strata, three lights</h1>
+    <p class="lede">The same 2.5D renderer as the ink study, now in colour. The sun stays fixed in the world, so as you drag the tree around, its lit side, rim light and shadows change. No 3D engine is involved.</p>
+  </header>
+
+  <div class="demo">
+    <div class="stage" id="stage" tabindex="0" aria-label="Rotating tree among ruins. Use left and right arrow keys to turn it.">
+      <canvas id="cv"></canvas>
+      <div class="hint" id="hint">Drag sideways to turn. The sun stays put.</div>
+      <div class="fps" id="fps"></div>
+    </div>
+    <div class="strata" role="group" aria-label="Stratum">
+      <button type="button" id="t-drowned" data-theme="drowned" aria-pressed="false"><span class="n">Drowned court</span><span class="c">Atlantis · night</span></button>
+      <button type="button" id="t-temple" data-theme="temple" aria-pressed="true"><span class="n">Root temple</span><span class="c">Angkor · dawn</span></button>
+      <button type="button" id="t-steps" data-theme="steps" aria-pressed="false"><span class="n">Sky steps</span><span class="c">Maya · afternoon</span></button>
+    </div>
+    <div class="row">
+      <button type="button" class="ghost" id="reseed">New tree <span class="seed" id="seedlabel"></span></button>
+    </div>
+    <p class="caption" id="caption"></p>
+  </div>
+
+  <section>
+    <h2>Strata as the climb</h2>
+    <p>These three scenes are proposed as layers of one run, bottom to top. You start in a flooded Atlantean court, climb through a jungle-swallowed Angkor temple, and break above the clouds onto Maya sky steps. Each boundary is a natural place for an unlock and for a tree to qualify for the gallery.</p>
+  </section>
+
+  <section>
+    <h2>What the renderer does</h2>
+    <ul class="plain">
+      <li><b>Lighting from 3D.</b> Every branch, leaf clump and pillar keeps a 3D position and normal. Brightness comes from the angle to the sun, then is painted as a 2D stroke.</li>
+      <li><b>Rim light and translucency.</b> When the sun is behind the tree, edges glow and leaves turn yellow-green, as backlit leaves do.</li>
+      <li><b>Atmosphere.</b> Distant strokes fade toward the sky's colour. Mist, water or clouds hide the base as you climb.</li>
+      <li><b>Additive light.</b> Sun bloom, light shafts, glowing blossoms and particles add light rather than paint over.</li>
+      <li><b>Cost.</b> The counter at the bottom left shows frames per second. It is Canvas 2D only, which suits phones.</li>
+    </ul>
+  </section>
+
+  <footer>Rendering study for Bonzai, not game code. Everything is generated from a seed. Compare with the <a href="../ink/">ink study</a>.</footer>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const stage = document.getElementById('stage');
+  const hint = document.getElementById('hint');
+  const fpsEl = document.getElementById('fps');
+  const caption = document.getElementById('caption');
+  const seedLabel = document.getElementById('seedlabel');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TAU = Math.PI*2;
+
+  // ---------- math ----------
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  const hash = k => { const x = Math.sin(k*127.1 + 311.7)*43758.5453; return x - Math.floor(x); };
+  const norm = v => { const l = Math.hypot(v[0],v[1],v[2]) || 1; return [v[0]/l,v[1]/l,v[2]/l]; };
+  const add = (a,b) => [a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+  const lerp = (a,b,t) => a+(b-a)*t;
+  const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
+  const mix = (a,b,t) => [lerp(a[0],b[0],t), lerp(a[1],b[1],t), lerp(a[2],b[2],t)];
+  const scl = (a,k) => [a[0]*k,a[1]*k,a[2]*k];
+  const rgb = (c,a=1) => `rgba(${clamp(c[0],0,255)|0},${clamp(c[1],0,255)|0},${clamp(c[2],0,255)|0},${a})`;
+
+  // ---------- strata ----------
+  const THEMES = {
+    drowned: {
+      caption: 'Drowned court · Atlantis, at night. Moonlight from a fixed direction, blossoms that glow and pulse, orichalcum rings shining on fluted columns, rising spores, and a flooded base with a moon path on the water.',
+      sky: [[0,[5,14,30]],[0.6,[14,42,62]],[1,[30,84,96]]], horizon: 0.5,
+      sun: {az: 1.9, el: 0.42, col:[200,232,255], i:0.75, moon:true},
+      fog: [24,66,82], fogAmt: 0.5,
+      bark: {dark:[22,26,40], lit:[120,130,160]},
+      leaf: {base:[10,64,74], alt:[24,52,92], lit:[70,200,190], back:[120,255,220]},
+      bloom: {col:[130,255,235], glow:true},
+      stone: {dark:[22,40,56], lit:[130,170,190], moss:[30,110,100]},
+      vine: [20,70,70],
+      far: [16,40,56],
+      water: {top:[16,56,72], bottom:[4,18,28], line:-0.06},
+      rays: false, particles: 'spores', style: 'atlantis', vignette: 0.55
+    },
+    temple: {
+      caption: 'Root temple · Angkor, at dawn. A low sun behind the temple towers, light shafts, rim light on trunk and stone when the sun is behind them, backlit translucent leaves, strangler-fig roots gripping the pillars, and dust in the air.',
+      sky: [[0,[52,48,98]],[0.45,[196,104,128]],[0.8,[246,170,110]],[1,[255,214,150]]], horizon: 0.68,
+      sun: {az: 1.35, el: 0.1, col:[255,206,140], i:1.1},
+      fog: [236,168,130], fogAmt: 0.5,
+      bark: {dark:[56,36,44], lit:[214,150,100]},
+      leaf: {base:[30,78,46], alt:[58,92,34], lit:[150,200,80], back:[236,240,120]},
+      bloom: {col:[244,70,140], glow:false},
+      stone: {dark:[96,70,78], lit:[240,186,130], moss:[80,118,56]},
+      vine: [52,70,40],
+      far: [128,78,104],
+      rays: true, particles: 'motes', style: 'angkor', vignette: 0.35
+    },
+    steps: {
+      caption: 'Sky steps · Maya, in the afternoon above the clouds. A high sun, saturated foliage, glyph panels and traces of red paint on stepped stone, a cloud sea that hides the base, and drifting petals.',
+      sky: [[0,[40,120,210]],[0.55,[128,198,238]],[1,[226,244,246]]], horizon: 0.72,
+      sun: {az: 4.1, el: 0.5, col:[255,246,222], i:1.0},
+      fog: [214,236,246], fogAmt: 0.42,
+      bark: {dark:[70,52,52], lit:[226,180,130]},
+      leaf: {base:[14,98,62], alt:[40,120,40], lit:[120,226,92], back:[210,255,150]},
+      bloom: {col:[255,150,40], glow:false},
+      stone: {dark:[112,104,110], lit:[250,238,212], moss:[72,146,80]},
+      vine: [40,96,52],
+      far: [150,170,190],
+      rays: false, particles: 'petals', style: 'maya', vignette: 0.25
+    }
+  };
+
+  // ---------- world generation (independent of stratum) ----------
+  function genWorld(seed){
+    const R = mulberry32(seed);
+    const segs = [], pads = [], ruins = [], vines = [];
+    const TH = 3.0, N = 16;
+    const ph1 = R()*TAU, ph2 = R()*TAU, amp = 0.25 + R()*0.2;
+    const trunk = [];
+    for (let i=0;i<=N;i++){
+      const t = i/N;
+      trunk.push([amp*Math.sin(t*3.2+ph1)*(0.4+t*0.6), t*TH, amp*0.8*Math.sin(t*2.6+ph2)*(0.4+t*0.6)]);
+    }
+    const rad = t => 0.2*Math.pow(1-t,1.3) + 0.035;
+    for (let i=0;i<N;i++) segs.push({a:trunk[i], b:trunk[i+1], r0:rad(i/N), r1:rad((i+1)/N), k:R()});
+    for (let r=0;r<6;r++){
+      const az = r*1.047 + R()*0.5;
+      let p = [trunk[0][0], 0.06, trunk[0][2]], rr = 0.12;
+      for (let j=0;j<3;j++){
+        const q = [p[0]+Math.cos(az)*0.17, Math.max(0.005, p[1]-0.025), p[2]+Math.sin(az)*0.17];
+        segs.push({a:p, b:q, r0:rr, r1:rr*0.6, k:R()});
+        p = q; rr *= 0.6;
+      }
+    }
+    function branch(p, az, len, r, lvl){
+      const steps = 4, sl = len/steps;
+      let d = norm([Math.cos(az), 0.25+R()*0.25, Math.sin(az)]);
+      let cur = p, rr = r;
+      for (let j=0;j<steps;j++){
+        d = norm([d[0]+(R()-.5)*0.35, d[1]+(j<2?-0.08:0.1)+(R()-.5)*0.2, d[2]+(R()-.5)*0.35]);
+        const nx = [cur[0]+d[0]*sl, cur[1]+d[1]*sl, cur[2]+d[2]*sl];
+        const r1 = Math.max(0.012, rr*0.78);
+        segs.push({a:cur, b:nx, r0:rr, r1, k:R()});
+        if (lvl===1 && j===1 && R()<0.55) vines.push({a:nx, len:0.4+R()*0.8, k:R()});
+        if (lvl<2 && j>=1 && j<steps-1 && R()<0.55) branch(nx, az+(R()<0.5?1:-1)*(0.6+R()*0.6), len*0.45, r1*0.8, lvl+1);
+        cur = nx; rr = r1;
+      }
+      pads.push({c:add(cur,[0,0.06,0]), rx:0.24+len*0.18, ry:0.11+len*0.05, n:Math.round(30+len*36)});
+    }
+    let az = R()*TAU;
+    for (let i=3;i<N-1;i += (R()<0.5?1:2)){
+      az += 2.39996 + (R()-.5)*0.3;
+      const t = i/N;
+      branch(trunk[i], az, (1-t)*0.9+0.3, rad(t)*0.7, 1);
+    }
+    pads.push({c:add(trunk[N],[0,0.1,0]), rx:0.42, ry:0.21, n:64});
+    for (const pd of pads){
+      pd.var = R(); pd.flower = R() < 0.5;
+      pd.pts = [];
+      for (let m=0;m<pd.n;m++){
+        const u = R()*TAU, rr = Math.sqrt(R());
+        const x = Math.cos(u)*rr*pd.rx, z = Math.sin(u)*rr*pd.rx;
+        const yl = (R()*0.9-0.3)*(1-rr*0.6);
+        const y = yl*pd.ry;
+        pd.pts.push({p:[pd.c[0]+x, pd.c[1]+y, pd.c[2]+z], a:R()*Math.PI, s:0.7+R()*0.6,
+          n:norm([x/pd.rx, y/pd.ry+0.45, z/pd.rx]), ao:clamp(0.35 + yl*0.9 + rr*0.35, 0, 1),
+          fl: pd.flower && R() < 0.2});
+      }
+    }
+    let paz = R()*TAU;
+    for (let i=0;i<5;i++){
+      const rr = 1.55 + R()*0.35, whole = i<2;
+      ruins.push({type:'pillar', c:[Math.cos(paz)*rr, 0, Math.sin(paz)*rr], h: whole ? 2.4+R()*0.4 : 0.7+R()*2.2, w:0.16+R()*0.07, whole, seed:(R()*1e9)|0});
+      paz += i===0 ? 1.15+R()*0.4 : 0.9+R()*0.5;
+    }
+    const p0 = ruins[0], p1 = ruins[1];
+    const ly = Math.min(p0.h,p1.h) + 0.08;
+    const A = [p0.c[0],ly,p0.c[2]], B = [p1.c[0],ly,p1.c[2]];
+    const pieces = 7;
+    for (let i=0;i<pieces;i++){
+      const t0 = i/pieces, t1 = (i+1)/pieces;
+      const a = [lerp(A[0],B[0],t0),ly,lerp(A[2],B[2],t0)], b = [lerp(A[0],B[0],t1),ly,lerp(A[2],B[2],t1)];
+      ruins.push({type:'lintel', a, b, seed:(R()*1e9)|0});
+      if (R() < 0.6) vines.push({a:[(a[0]+b[0])/2, ly-0.08, (a[2]+b[2])/2], len:0.25+R()*0.7, k:R()});
+    }
+    p0.h = p1.h = ly - 0.08;
+    return {segs, pads, ruins, vines};
+  }
+
+  // ---------- state ----------
+  let seed = 1 + Math.floor(Math.random()*9999);
+  let world = genWorld(seed);
+  let themeKey = 'temple', T = THEMES.temple;
+  let phi = -0.15, vel = 0, dragging = false, lastX = 0, lastInteract = -1e9;
+  let W=0, H=0, DPR=1, S=1, cx=0, cy=0, ppr=1, horizonY=0, time=0;
+  const F = 9, EYE = 1.75, FOVA = 0.9;
+  let cphi=1, sphi=0, Lw=[0,1,0], Lv=[0,1,0];
+  let glows = [], particles = [];
+  // pre-rendered radial glow per colour; drawImage is far cheaper than a gradient per glow
+  const glowCache = new Map();
+  function glowSprite(c){
+    const key = c.join(',');
+    let s = glowCache.get(key);
+    if (!s){
+      s = document.createElement('canvas'); s.width = s.height = 64;
+      const g = s.getContext('2d'), rg = g.createRadialGradient(32,32,0,32,32,32);
+      rg.addColorStop(0, rgb(c,1)); rg.addColorStop(0.35, rgb(c,0.35)); rg.addColorStop(1, rgb(c,0));
+      g.fillStyle = rg; g.fillRect(0,0,64,64);
+      glowCache.set(key, s);
+    }
+    return s;
+  }
+  function oceanGradient(){
+    const g = ctx.createLinearGradient(0,horizonY,0,H);
+    g.addColorStop(0, rgb(T.water.top)); g.addColorStop(1, rgb(T.water.bottom));
+    return g;
+  }
+
+  function resize(){
+    const r = stage.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = r.width; H = r.height;
+    cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    S = Math.min(H/4.9, W/4.4);
+    cx = W/2; cy = H*0.5; ppr = (W/2)/FOVA;
+    initParticles();
+  }
+
+  // ---------- projection ----------
+  function P(p){
+    const x = p[0]*cphi - p[2]*sphi, z = p[0]*sphi + p[2]*cphi;
+    const k = F/(F+z);
+    return {x:cx + x*S*k, y:cy - (p[1]-EYE)*S*k, z, k};
+  }
+  const toView = v => [v[0]*cphi - v[2]*sphi, v[1], v[0]*sphi + v[2]*cphi];
+  const fogAt = z => T.fogAmt*clamp((z+1.3)/3.6, 0, 1);
+  // a world azimuth (far away) to a screen x; null when behind the camera
+  function farX(beta){
+    const dx = Math.cos(beta)*cphi - Math.sin(beta)*sphi, dz = Math.cos(beta)*sphi + Math.sin(beta)*cphi;
+    if (dz <= 0.05) return null;
+    return cx + Math.atan2(dx,dz)*ppr;
+  }
+  function pxToBeta(px){
+    const a = (px-cx)/ppr, vx = Math.sin(a), vz = Math.cos(a);
+    return Math.atan2(-vx*sphi + vz*cphi, vx*cphi + vz*sphi);
+  }
+  function sunScreen(){
+    if (Lv[2] <= 0.02) return null;
+    const a = Math.atan2(Lv[0], Lv[2]);
+    return {x: cx + a*ppr, y: horizonY - T.sun.el*ppr, a};
+  }
+  // shade a colour pair by a lambert term d in [-1,1]
+  const shade = (pair, d, f) => mix(mix(pair.dark, pair.lit, clamp(0.1 + 0.9*d*T.sun.i, 0, 1)), T.fog, f);
+
+  // ---------- sky and far layers ----------
+  function drawSky(){
+    const g = ctx.createLinearGradient(0,0,0,horizonY);
+    for (const [o,c] of T.sky) g.addColorStop(o, rgb(c));
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,horizonY+1);
+    ctx.fillStyle = rgb(T.sky[T.sky.length-1][1]); ctx.fillRect(0,horizonY,W,H-horizonY);
+    const sun = sunScreen();
+    if (sun){
+      ctx.globalCompositeOperation = 'lighter';
+      const R0 = W*(T.sun.moon?0.5:0.85);
+      const g2 = ctx.createRadialGradient(sun.x,sun.y,0,sun.x,sun.y,R0);
+      g2.addColorStop(0, rgb(T.sun.col, T.sun.moon?0.35:0.55)); g2.addColorStop(0.25, rgb(T.sun.col, 0.12)); g2.addColorStop(1, rgb(T.sun.col,0));
+      ctx.fillStyle = g2; ctx.fillRect(0,0,W,H);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = rgb(mix(T.sun.col,[255,255,255],0.5));
+      ctx.beginPath(); ctx.arc(sun.x, sun.y, W*(T.sun.moon?0.035:0.045), 0, TAU); ctx.fill();
+      if (T.sun.moon){
+        ctx.fillStyle = rgb([170,200,220],0.25);
+        ctx.beginPath(); ctx.arc(sun.x-W*0.01, sun.y+W*0.006, W*0.009, 0, TAU); ctx.arc(sun.x+W*0.012, sun.y-W*0.01, W*0.006, 0, TAU); ctx.fill();
+      }
+    }
+    if (themeKey==='drowned'){
+      for (let i=0;i<70;i++){
+        const x = farX(hash(i)*TAU); if (x===null) continue;
+        const y = hash(i+50)*horizonY*0.85;
+        ctx.fillStyle = rgb([220,235,255], 0.3+0.5*hash(i+9)*(0.6+0.4*Math.sin(time*1.5+i)));
+        ctx.fillRect(x, y, 1.3, 1.3);
+      }
+    }
+  }
+
+  function ridgeLayer(baseY, ampRad, col, freqPh, alpha){
+    ctx.beginPath(); ctx.moveTo(0,H);
+    for (let px=0; px<=W+6; px+=6){
+      const b = pxToBeta(px);
+      const h = Math.sin(b*2+freqPh)*0.45 + Math.sin(b*5+freqPh*2)*0.25 + Math.sin(b*9+freqPh*3)*0.1 + 0.8;
+      ctx.lineTo(px, baseY - h*ampRad*ppr);
+    }
+    ctx.lineTo(W,H); ctx.closePath();
+    ctx.fillStyle = rgb(col, alpha); ctx.fill();
+  }
+
+  function canopyLayer(baseY, n, rMin, rMax, col, lit, seedOff){
+    for (let k=0;k<n;k++){
+      const x = farX(k/n*TAU); if (x===null || x<-rMax || x>W+rMax) continue;
+      const r = lerp(rMin, rMax, hash(k+seedOff));
+      const y = baseY - hash(k*3+seedOff)*rMax*0.9;
+      ctx.fillStyle = rgb(col); ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+      if (lit){ ctx.fillStyle = rgb(lit, 0.35); ctx.beginPath(); ctx.arc(x-r*0.2,y-r*0.25,r*0.6,0,TAU); ctx.fill(); }
+    }
+  }
+
+  function prang(x, base, w, h, col){
+    // Angkor tower: stacked tiers narrowing to a lotus bud
+    const tiers = 7;
+    ctx.fillStyle = rgb(col);
+    ctx.fillRect(x-w*0.7, base-h*0.18, w*1.4, h*0.18);
+    for (let i=0;i<tiers;i++){
+      const t0 = i/tiers, t1 = (i+1)/tiers;
+      const w0 = w*(1-Math.pow(t0,1.6)*0.85), w1 = w*(1-Math.pow(t1,1.6)*0.85);
+      const y0 = base-h*0.18 - t0*h*0.82, y1 = base-h*0.18 - t1*h*0.82;
+      ctx.beginPath(); ctx.moveTo(x-w0*0.5,y0); ctx.quadraticCurveTo(x-w0*0.56,(y0+y1)/2,x-w1*0.5,y1); ctx.lineTo(x+w1*0.5,y1); ctx.quadraticCurveTo(x+w0*0.56,(y0+y1)/2,x+w0*0.5,y0); ctx.closePath(); ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(x, base-h-w*0.08, w*0.08, w*0.16, 0, 0, TAU); ctx.fill();
+  }
+
+  function pyramid(x, base, w, h, col, lit){
+    const tiers = 8, th = h*0.8/tiers;
+    for (let i=0;i<tiers;i++){
+      const ww = w*(1-i/tiers*0.62);
+      ctx.fillStyle = rgb(mix(col, lit, 0.15 + 0.1*(i%2)));
+      ctx.fillRect(x-ww/2, base-(i+1)*th, ww, th+0.5);
+      ctx.fillStyle = rgb(lit, 0.25);
+      ctx.fillRect(x-ww/2, base-(i+1)*th, ww*0.45, th+0.5);
+    }
+    ctx.fillStyle = rgb(mix(col,[0,0,0],0.2));
+    ctx.fillRect(x-w*0.07, base-h*0.8, w*0.14, h*0.8);
+    const tw = w*0.3, top = base-h*0.8;
+    ctx.fillStyle = rgb(mix(col, lit, 0.3)); ctx.fillRect(x-tw/2, top-h*0.15, tw, h*0.15);
+    ctx.fillStyle = rgb(mix(col,[0,0,0],0.35)); ctx.fillRect(x-tw*0.12, top-h*0.1, tw*0.24, h*0.1);
+    ctx.fillStyle = rgb(mix(col, lit, 0.2)); ctx.fillRect(x-tw*0.3, top-h*0.27, tw*0.6, h*0.12);
+  }
+
+  function drawFar(){
+    const sunAz = T.sun.az;
+    if (themeKey==='temple'){
+      ridgeLayer(horizonY+2, 0.05, mix(T.far, T.fog, 0.55), 1.3, 1);
+      // five-tower silhouette standing in front of the sun
+      const towers = [[-0.17,0.11,0.06],[-0.085,0.15,0.07],[0,0.22,0.085],[0.085,0.15,0.07],[0.17,0.11,0.06]];
+      for (const [db,hh,ww] of towers){
+        const x = farX(sunAz+0.06+db); if (x===null) continue;
+        prang(x, horizonY+4, ww*ppr, hh*ppr, mix(T.far, T.fog, 0.35));
+      }
+      const xg = farX(sunAz+0.06);
+      if (xg!==null){ ctx.fillStyle = rgb(mix(T.far, T.fog, 0.35)); ctx.fillRect(xg-0.24*ppr, horizonY-0.035*ppr, 0.48*ppr, 0.04*ppr); }
+      canopyLayer(horizonY+0.03*ppr, 160, 0.02*ppr, 0.05*ppr, mix([40,52,46], T.fog, 0.45), null, 3);
+      const gy = horizonY+0.07*ppr, gg = ctx.createLinearGradient(0,gy,0,H);
+      gg.addColorStop(0, rgb(mix([34,50,38], T.fog, 0.3))); gg.addColorStop(1, rgb([38,30,40]));
+      ctx.fillStyle = gg; ctx.fillRect(0,gy,W,H-gy);
+      canopyLayer(horizonY+0.09*ppr, 110, 0.04*ppr, 0.08*ppr, mix([30,46,36], T.fog, 0.25), T.leaf.lit, 11);
+    } else if (themeKey==='steps'){
+      ridgeLayer(horizonY+2, 0.06, mix([120,150,170], T.fog, 0.55), 0.4, 1);
+      const pyr = [[2.4,0.42,0.2],[3.3,0.26,0.12],[0.5,0.3,0.15]];
+      for (const [b,ww,hh] of pyr){
+        const x = farX(b); if (x===null) continue;
+        pyramid(x, horizonY+2, ww*ppr, hh*ppr, mix([150,140,128], T.fog, 0.45), mix([255,250,235], T.fog, 0.3));
+      }
+      canopyLayer(horizonY+0.025*ppr, 150, 0.025*ppr, 0.06*ppr, mix([248,250,252], T.fog, 0.1), null, 21);
+    } else {
+      // ocean
+      ctx.fillStyle = oceanGradient(); ctx.fillRect(0,horizonY,W,H-horizonY);
+      // sunken silhouettes on the horizon
+      const sil = mix(T.far, T.fog, 0.3);
+      for (const b of [0.9, 3.0, 4.6]){
+        const x = farX(b); if (x===null) continue;
+        ctx.fillStyle = rgb(sil);
+        ctx.beginPath(); ctx.ellipse(x, horizonY, 0.09*ppr, 0.06*ppr, 0, Math.PI, TAU); ctx.fill();
+        for (let c=-3;c<=3;c++){ if (c===0) continue; ctx.fillRect(x + c*0.035*ppr - 2, horizonY - (0.03+0.02*hash(c+b))*ppr, 4, (0.03+0.02*hash(c+b))*ppr); }
+        ctx.fillStyle = rgb(T.bloom.col, 0.55+0.3*Math.sin(time*1.3+b));
+        for (let w=0;w<4;w++){ ctx.fillRect(x - 0.05*ppr + w*0.033*ppr, horizonY-0.025*ppr, 2, 2); }
+      }
+      // moon path on the water
+      const sun = sunScreen();
+      if (sun){
+        ctx.globalCompositeOperation = 'lighter';
+        for (let j=0;j<60;j++){
+          const t = j/60, y = horizonY + 3 + t*t*(H-horizonY);
+          const spread = 6 + t*W*0.12;
+          const x = sun.x + (hash(j*7 + Math.floor(time*3 + hash(j)*10))-0.5)*spread*2;
+          const w = 4 + t*40*hash(j+3);
+          ctx.fillStyle = rgb(T.sun.col, 0.12 + 0.25*(1-t)*hash(j*5+Math.floor(time*4)));
+          ctx.fillRect(x-w/2, y, w, 1 + t*2);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+  }
+
+  // ---------- plinth ----------
+  function cylinder(y0, y1, r, pair, f){
+    const top = P([0,y1,0]), bot = P([0,y0,0]);
+    const rx = r*S*top.k, ry = rx*0.2;
+    const g = ctx.createLinearGradient(top.x-rx,0,top.x+rx,0);
+    g.addColorStop(0, rgb(shade(pair, -Lv[0], f)));
+    g.addColorStop(0.5, rgb(shade(pair, -Lv[2]*0.7+0.15, f)));
+    g.addColorStop(1, rgb(shade(pair, Lv[0], f)));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(bot.x,bot.y,rx,ry,0,0,Math.PI); ctx.lineTo(top.x-rx,top.y); ctx.ellipse(top.x,top.y,rx,ry,0,Math.PI,0,true); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = rgb(shade(pair, Lv[1], f));
+    ctx.beginPath(); ctx.ellipse(top.x,top.y,rx,ry,0,0,TAU); ctx.fill();
+    return {top, rx, ry};
+  }
+  function drawPlinth(){
+    cylinder(-0.34, -0.14, 0.78, T.stone, 0.05);
+    const {top, rx, ry} = cylinder(-0.14, 0, 0.6, T.stone, 0.03);
+    const R = mulberry32(99);
+    for (let i=0;i<40;i++){
+      const a = R()*TAU, rr = 0.75 + R()*0.25;
+      ctx.fillStyle = rgb(mix(T.stone.moss, T.leaf.lit, R()*0.4*Math.max(0,Lv[1])), 0.85);
+      ctx.beginPath(); ctx.ellipse(top.x+Math.cos(a)*rx*rr, top.y+Math.sin(a)*ry*rr, 3+R()*5, 2+R()*2.5, 0, 0, TAU); ctx.fill();
+    }
+    if (T.water){
+      const wl = P([0, T.water.line, 0]);
+      const wrx = 0.95*S*wl.k;
+      ctx.fillStyle = oceanGradient(); ctx.globalAlpha = 0.88;
+      ctx.beginPath(); ctx.ellipse(wl.x, wl.y, wrx, wrx*0.2, 0, Math.PI, TAU); ctx.lineTo(wl.x+wrx, H); ctx.lineTo(wl.x-wrx, H); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = rgb(T.sun.col, 0.35); ctx.lineWidth = 1;
+      for (let i=0;i<2;i++){
+        const s = 1 + ((time*0.25 + i*0.5) % 1)*0.35;
+        ctx.globalAlpha = 1 - ((time*0.25 + i*0.5) % 1);
+        ctx.beginPath(); ctx.ellipse(wl.x, wl.y, wrx*0.66*s, wrx*0.13*s, 0, 0, TAU); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---------- tree ----------
+  function drawSeg(sg, A, B){
+    const ra = Math.max(0.6, sg.r0*S*A.k), rb = Math.max(0.5, sg.r1*S*B.k);
+    const dx = B.x-A.x, dy = B.y-A.y, L = Math.hypot(dx,dy) || 1;
+    const nx = -dy/L, ny = dx/L;
+    const mx = (A.x+B.x)/2, my = (A.y+B.y)/2, mr = (ra+rb)/2*(0.95+sg.k*0.1);
+    const f = fogAt((A.z+B.z)/2);
+    const dP = nx*Lv[0] - ny*Lv[1];
+    const g = ctx.createLinearGradient(mx-nx*mr, my-ny*mr, mx+nx*mr, my+ny*mr);
+    g.addColorStop(0, rgb(shade(T.bark, -dP, f)));
+    g.addColorStop(0.55, rgb(shade(T.bark, -Lv[2]*0.6+0.15, f)));
+    g.addColorStop(1, rgb(shade(T.bark, dP, f)));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(A.x+nx*ra, A.y+ny*ra);
+    ctx.quadraticCurveTo(mx+nx*mr*1.03, my+ny*mr*1.03, B.x+nx*rb, B.y+ny*rb);
+    ctx.lineTo(B.x-nx*rb, B.y-ny*rb);
+    ctx.quadraticCurveTo(mx-nx*mr, my-ny*mr, A.x-nx*ra, A.y-ny*ra);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(B.x,B.y,rb,0,TAU); ctx.fill();
+    if (ra > 4){
+      ctx.strokeStyle = rgb(T.bark.dark, 0.28); ctx.lineWidth = 1;
+      for (const o of [-0.35, 0.3]){
+        ctx.beginPath(); ctx.moveTo(A.x+nx*ra*o, A.y+ny*ra*o); ctx.lineTo(B.x+nx*rb*(o+0.1), B.y+ny*rb*(o+0.1)); ctx.stroke();
+      }
+    }
+    if (Lv[2] > 0.1){
+      // rim light: the edge nearer the sun's screen direction glows more
+      const base = (Lv[2]-0.1)*T.sun.i*(1-f)*1.1;
+      for (const side of [1,-1]){
+        const w = base*(0.45 + 0.55*clamp(side*dP*2, 0, 1));
+        if (w < 0.03) continue;
+        ctx.strokeStyle = rgb(T.sun.col, Math.min(0.9, w)); ctx.lineWidth = Math.max(0.8, ra*0.16);
+        ctx.beginPath(); ctx.moveTo(A.x+side*nx*ra*0.92, A.y+side*ny*ra*0.92); ctx.lineTo(B.x+side*nx*rb*0.92, B.y+side*ny*rb*0.92); ctx.stroke();
+      }
+    }
+  }
+
+  function drawPad(pd){
+    const pts = pd.pts.map(pt => ({pt, Q:P(pt.p)})).sort((a,b)=>b.Q.z-a.Q.z);
+    const base = mix(T.leaf.base, T.leaf.alt, pd.var*0.7);
+    let lsx = Lv[0], lsy = -Lv[1]; const ll = Math.hypot(lsx,lsy)||1; lsx/=ll; lsy/=ll;
+    const back = Math.max(0, Lv[2]);
+    for (const {pt,Q} of pts){
+      const n = pt.n;
+      const nvx = n[0]*cphi - n[2]*sphi, nvz = n[0]*sphi + n[2]*cphi;
+      const d = nvx*Lv[0] + n[1]*Lv[1] + nvz*Lv[2];
+      const tr = back*(0.25 + 0.75*Math.max(0,-nvz));
+      const f = fogAt(Q.z);
+      let col = mix(base, T.leaf.lit, clamp(d,0,1)*T.sun.i);
+      col = scl(col, 0.5 + 0.5*pt.ao);
+      col = mix(col, T.leaf.back, clamp(tr*pt.ao,0,1)*0.65);
+      col = mix(col, T.fog, f);
+      const rr = 0.066*S*Q.k*pt.s;
+      ctx.fillStyle = rgb(col, 0.95);
+      ctx.beginPath(); ctx.ellipse(Q.x,Q.y,rr,rr*0.62,pt.a,0,TAU); ctx.fill();
+      if (d > 0.3 && pt.ao > 0.5){
+        ctx.fillStyle = rgb(mix(col, T.leaf.lit, 0.55), 0.85);
+        ctx.beginPath(); ctx.ellipse(Q.x+lsx*rr*0.35, Q.y+lsy*rr*0.35, rr*0.45, rr*0.26, pt.a, 0, TAU); ctx.fill();
+      }
+      if (pt.fl && pt.ao > 0.35){
+        const bc = mix(mix(scl(T.bloom.col,0.7), T.bloom.col, clamp(d,0,1)), T.fog, f*0.8);
+        ctx.fillStyle = rgb(bc);
+        for (let p=0;p<5;p++){
+          const a = pt.a + p*TAU/5;
+          ctx.beginPath(); ctx.arc(Q.x+Math.cos(a)*rr*0.28, Q.y+Math.sin(a)*rr*0.22, rr*0.2, 0, TAU); ctx.fill();
+        }
+        ctx.fillStyle = rgb([255,240,190]); ctx.beginPath(); ctx.arc(Q.x,Q.y,rr*0.1,0,TAU); ctx.fill();
+        if (T.bloom.glow) glows.push({x:Q.x, y:Q.y, r:rr*2.6, c:T.bloom.col, a:0.16+0.1*Math.sin(time*2+pt.a*7)});
+      }
+    }
+  }
+
+  function drawVine(v){
+    const sway = Math.sin(time*0.9 + v.k*TAU)*0.06*v.len;
+    const A = P(v.a), M = P([v.a[0]+sway*0.4, v.a[1]-v.len*0.55, v.a[2]]), E = P([v.a[0]+sway, v.a[1]-v.len, v.a[2]+sway*0.3]);
+    const f = fogAt(A.z);
+    const col = mix(mix(T.vine, T.leaf.lit, 0.25*Math.max(0,Lv[1])), T.fog, f);
+    ctx.strokeStyle = rgb(col); ctx.lineWidth = Math.max(0.7, 1.3*A.k);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.quadraticCurveTo(M.x+(M.x-(A.x+E.x)/2), M.y, E.x, E.y); ctx.stroke();
+    const lc = mix(mix(T.leaf.base, T.leaf.lit, 0.4), T.fog, f);
+    ctx.fillStyle = rgb(lc);
+    for (let i=1;i<=5;i++){
+      const t = i/6, u = 1-t;
+      const x = u*u*A.x + 2*u*t*(M.x+(M.x-(A.x+E.x)/2)) + t*t*E.x, y = u*u*A.y + 2*u*t*M.y + t*t*E.y;
+      const side = i%2 ? 1 : -1;
+      ctx.beginPath(); ctx.ellipse(x+side*3*A.k, y, 3.2*A.k, 1.7*A.k, side*0.6, 0, TAU); ctx.fill();
+    }
+  }
+
+  // ---------- ruins ----------
+  function pillarShades(f){
+    return [rgb(shade(T.stone, -Lv[0], f)), rgb(shade(T.stone, -Lv[2]*0.7+0.15, f)), rgb(shade(T.stone, Lv[0], f))];
+  }
+  function hGrad(x0, x1, cols){
+    const g = ctx.createLinearGradient(x0,0,x1,0);
+    g.addColorStop(0, cols[0]); g.addColorStop(0.5, cols[1]); g.addColorStop(1, cols[2]);
+    return g;
+  }
+  function rimV(xL, xR, yTop, yBot, f){
+    if (Lv[2] <= 0.1) return;
+    const base = (Lv[2]-0.1)*T.sun.i*(1-f);
+    ctx.lineWidth = 1.6;
+    for (const [x,side] of [[xL,-1],[xR,1]]){
+      const w = base*(0.4 + 0.6*clamp(side*Lv[0]*2,0,1));
+      if (w < 0.03) continue;
+      ctx.strokeStyle = rgb(T.sun.col, Math.min(0.85,w));
+      ctx.beginPath(); ctx.moveTo(x - side*0.8, yTop); ctx.lineTo(x - side*0.8, yBot); ctx.stroke();
+    }
+  }
+
+  function drawPillar(pl){
+    const R = mulberry32(pl.seed);
+    const B = P(pl.c), Tp = P([pl.c[0], pl.h, pl.c[2]]);
+    const hw = pl.w*S*B.k;
+    const f = fogAt(B.z);
+    const cols = pillarShades(f);
+    const style = T.style;
+    // body outline: broken pillars get a jagged top
+    const top = [];
+    if (pl.whole) top.push([Tp.x-hw, Tp.y],[Tp.x+hw, Tp.y]);
+    else for (let i=0;i<=4;i++) top.push([Tp.x-hw+2*hw*i/4, Tp.y + (R()-0.6)*hw*1.3]);
+    ctx.fillStyle = hGrad(B.x-hw, B.x+hw, cols);
+    ctx.beginPath(); ctx.moveTo(B.x-hw, B.y);
+    for (const p of top) ctx.lineTo(p[0],p[1]);
+    ctx.lineTo(B.x+hw, B.y); ctx.closePath(); ctx.fill();
+    const topY = Math.min(...top.map(p=>p[1]));
+    const dark = rgb(shade(T.stone, -0.6, f), 0.5);
+
+    if (style==='atlantis'){
+      // flutes
+      ctx.lineWidth = 1;
+      for (let i=1;i<5;i++){
+        const x = B.x - hw + 2*hw*i/5;
+        ctx.strokeStyle = i%2 ? dark : rgb(shade(T.stone, 0.6, f), 0.35);
+        ctx.beginPath(); ctx.moveTo(x, B.y); ctx.lineTo(x, topY+3); ctx.stroke();
+      }
+      // orichalcum rings, glowing
+      for (let i=0;i<3;i++){
+        const y = 0.35 + i*0.7; if (y > pl.h-0.15) break;
+        const Q = P([pl.c[0], y, pl.c[2]]);
+        const pulse = 0.55 + 0.35*Math.sin(time*1.6 + i + pl.seed%7);
+        ctx.strokeStyle = rgb(T.bloom.col, pulse*(1-f*0.6)); ctx.lineWidth = 2.2*Q.k;
+        ctx.beginPath(); ctx.ellipse(Q.x, Q.y, hw*1.02, hw*0.22, 0, 0, Math.PI); ctx.stroke();
+        glows.push({x:Q.x, y:Q.y+hw*0.1, r:hw*2.4, c:T.bloom.col, a:0.18*pulse});
+      }
+      // coral and barnacles near the waterline
+      for (let i=0;i<10;i++){
+        const Q = P([pl.c[0], 0.05 + R()*0.6, pl.c[2]]);
+        const cc = [[255,120,140],[255,170,90],[180,120,255]][i%3];
+        ctx.fillStyle = rgb(mix(cc, T.fog, f), 0.85);
+        ctx.beginPath(); ctx.arc(Q.x + (R()-0.5)*hw*1.8, Q.y, 1.5+R()*2.5*Q.k, 0, TAU); ctx.fill();
+      }
+      if (pl.whole){
+        ctx.fillStyle = hGrad(Tp.x-hw*1.5, Tp.x+hw*1.5, cols);
+        ctx.fillRect(Tp.x-hw*1.5, Tp.y-hw*0.5, hw*3, hw*0.5);
+        ctx.fillStyle = rgb(shade(T.stone, Lv[1], f));
+        ctx.beginPath(); ctx.arc(Tp.x-hw*1.35, Tp.y-hw*0.05, hw*0.28, 0, TAU); ctx.arc(Tp.x+hw*1.35, Tp.y-hw*0.05, hw*0.28, 0, TAU); ctx.fill();
+      }
+    } else if (style==='angkor'){
+      // carved bands
+      ctx.lineWidth = 1;
+      for (let y=0.3; y<pl.h-0.1; y+=0.32){
+        const Q = P([pl.c[0], y, pl.c[2]]);
+        ctx.strokeStyle = dark; ctx.beginPath(); ctx.moveTo(Q.x-hw, Q.y); ctx.quadraticCurveTo(Q.x, Q.y+hw*0.25, Q.x+hw, Q.y); ctx.stroke();
+        if (R() < 0.5){
+          ctx.strokeStyle = rgb(shade(T.stone, -0.3, f), 0.45);
+          for (let k=-3;k<=3;k++){ ctx.beginPath(); ctx.moveTo(Q.x+k*hw*0.26, Q.y-5*Q.k); ctx.lineTo(Q.x+k*hw*0.26, Q.y-1); ctx.stroke(); }
+        }
+      }
+      // strangler-fig roots gripping the stone
+      const rootCol = mix(shade(T.bark, 0.2, f), T.stone.dark, 0.2);
+      for (let r=0;r<3;r++){
+        const x0 = (R()-0.5)*hw*1.6, ph = R()*TAU, wv = 0.3+R()*0.5;
+        ctx.strokeStyle = rgb(rootCol); ctx.lineWidth = (2 + R()*2.5)*B.k; ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let i=0;i<=12;i++){
+          const t = i/12, y = lerp(topY + 4, B.y, t);
+          const x = B.x + x0 + Math.sin(t*6*wv + ph)*hw*0.55;
+          if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+      if (pl.whole){
+        // prang cap on the lintel-bearing pillars
+        ctx.fillStyle = hGrad(Tp.x-hw*1.5, Tp.x+hw*1.5, cols);
+        ctx.fillRect(Tp.x-hw*1.4, Tp.y-hw*0.45, hw*2.8, hw*0.45);
+      }
+    } else {
+      // Maya: stepped blocks, glyph panels, traces of red paint
+      for (let y=0.5; y<pl.h-0.1; y+=0.55){
+        const Q = P([pl.c[0], y, pl.c[2]]);
+        ctx.fillStyle = rgb(shade(T.stone, Lv[1], f));
+        ctx.fillRect(Q.x-hw*1.12, Q.y-2.5*Q.k, hw*2.24, 3*Q.k);
+        ctx.fillStyle = dark; ctx.fillRect(Q.x-hw*1.12, Q.y+0.5, hw*2.24, 2*Q.k);
+      }
+      const gw = hw*0.62;
+      for (let y=0.25; y<pl.h-0.3; y+=0.3){
+        if (R() < 0.35) continue;
+        const Q = P([pl.c[0], y, pl.c[2]]);
+        for (const sx of [-1,1]){
+          const x = Q.x + sx*hw*0.48 - gw/2;
+          ctx.fillStyle = rgb(shade(T.stone, -0.2, f), 0.55);
+          ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, Q.y-gw, gw, gw, gw*0.3) : ctx.rect(x, Q.y-gw, gw, gw); ctx.fill();
+          ctx.fillStyle = rgb(shade(T.stone, 0.7, f), 0.6);
+          ctx.beginPath(); ctx.arc(x+gw*0.35, Q.y-gw*0.6, gw*0.14, 0, TAU); ctx.arc(x+gw*0.68, Q.y-gw*0.38, gw*0.1, 0, TAU); ctx.fill();
+        }
+      }
+      for (let i=0;i<4;i++){
+        const Q = P([pl.c[0], 0.2 + R()*(pl.h-0.4), pl.c[2]]);
+        ctx.fillStyle = rgb(mix([186,52,40], T.fog, f), 0.22);
+        ctx.beginPath(); ctx.ellipse(Q.x+(R()-0.5)*hw, Q.y, hw*(0.3+R()*0.5), hw*(0.4+R()*0.6), 0, 0, TAU); ctx.fill();
+      }
+      if (pl.whole){
+        for (let s=0;s<3;s++){
+          const ww = hw*(1.5 - s*0.25);
+          ctx.fillStyle = hGrad(Tp.x-ww, Tp.x+ww, cols);
+          ctx.fillRect(Tp.x-ww, Tp.y - (s+1)*hw*0.35, ww*2, hw*0.36);
+        }
+      }
+    }
+    // moss on the top and in patches
+    for (let i=0;i<14;i++){
+      const onTop = i < 8;
+      const x = onTop ? lerp(top[0][0], top[top.length-1][0], R()) : B.x + (R()-0.5)*hw*2;
+      const y = onTop ? topY + R()*hw*0.6 : lerp(topY, B.y, R());
+      ctx.fillStyle = rgb(mix(mix(T.stone.moss, T.leaf.lit, 0.35*Math.max(0,Lv[1])), T.fog, f), 0.85);
+      ctx.beginPath(); ctx.ellipse(x, y, (2+R()*4)*B.k, (1.5+R()*2)*B.k, 0, 0, TAU); ctx.fill();
+    }
+    rimV(B.x-hw, B.x+hw, topY, B.y, f);
+    if (T.water){
+      const wl = P([pl.c[0], T.water.line, pl.c[2]]);
+      ctx.fillStyle = oceanGradient(); ctx.globalAlpha = 0.9;
+      ctx.fillRect(B.x-hw-2, wl.y, hw*2+4, B.y-wl.y+2); ctx.globalAlpha = 1;
+      ctx.strokeStyle = rgb(T.sun.col, 0.35); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(wl.x, wl.y, hw*1.6, hw*0.3, 0, 0, TAU); ctx.stroke();
+    }
+  }
+
+  function drawLintel(li){
+    const A = P(li.a), B = P(li.b);
+    const f = fogAt((A.z+B.z)/2);
+    const th = 0.09*S, ta = th*A.k, tb = th*B.k;
+    ctx.fillStyle = rgb(shade(T.stone, -Lv[2]*0.7+0.15, f));
+    ctx.beginPath(); ctx.moveTo(A.x,A.y-ta); ctx.lineTo(B.x,B.y-tb); ctx.lineTo(B.x,B.y+tb); ctx.lineTo(A.x,A.y+ta); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = rgb(shade(T.stone, Lv[1], f));
+    ctx.beginPath(); ctx.moveTo(A.x,A.y-ta); ctx.lineTo(B.x,B.y-tb); ctx.lineTo(B.x,B.y-tb*1.5); ctx.lineTo(A.x,A.y-ta*1.5); ctx.closePath(); ctx.fill();
+    const R = mulberry32(li.seed);
+    for (let i=0;i<5;i++){
+      const t = R();
+      ctx.fillStyle = rgb(mix(T.stone.moss, T.fog, f), 0.85);
+      ctx.beginPath(); ctx.ellipse(lerp(A.x,B.x,t), lerp(A.y,B.y,t)-ta*1.3, 3+R()*4, 1.5+R()*1.5, 0, 0, TAU); ctx.fill();
+    }
+    if (Lv[2] > 0.1){
+      ctx.strokeStyle = rgb(T.sun.col, Math.min(0.8,(Lv[2]-0.1)*T.sun.i*(1-f))); ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(A.x,A.y-ta*1.5); ctx.lineTo(B.x,B.y-tb*1.5); ctx.stroke();
+    }
+  }
+
+  // ---------- light & atmosphere ----------
+  function drawRays(){
+    const sun = sunScreen(); if (!sun) return;
+    const strength = clamp(Lv[2],0,1)*T.sun.i;
+    ctx.globalCompositeOperation = 'lighter';
+    const len = H*1.4;
+    for (let i=0;i<11;i++){
+      const ang = (i/11)*TAU + hash(i)*0.3 + Math.sin(time*0.15 + i*1.7)*0.04;
+      const wd = 0.025 + 0.03*hash(i+1);
+      const a = (0.035 + 0.04*hash(i+7))*strength*(0.7+0.3*Math.sin(time*0.4+i));
+      const g = ctx.createLinearGradient(sun.x, sun.y, sun.x+Math.cos(ang)*len, sun.y+Math.sin(ang)*len);
+      g.addColorStop(0, rgb(T.sun.col, a)); g.addColorStop(1, rgb(T.sun.col, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(sun.x, sun.y);
+      ctx.lineTo(sun.x+Math.cos(ang-wd)*len, sun.y+Math.sin(ang-wd)*len);
+      ctx.lineTo(sun.x+Math.cos(ang+wd)*len, sun.y+Math.sin(ang+wd)*len);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawBase(){
+    if (themeKey==='temple'){
+      const g = ctx.createLinearGradient(0,H*0.74,0,H);
+      g.addColorStop(0, rgb(T.fog,0)); g.addColorStop(1, rgb(T.fog,0.8));
+      ctx.fillStyle = g; ctx.fillRect(0,H*0.74,W,H*0.26);
+    } else if (themeKey==='steps'){
+      // cloud sea hiding the base, lit from above
+      const n = 90;
+      for (let pass=0; pass<2; pass++){
+        for (let k=0;k<n;k++){
+          const b = k/n*TAU + time*0.01*(pass?1.4:1);
+          const x = farX(b); if (x===null) continue;
+          const r = (0.06 + 0.07*hash(k+pass*100))*ppr;
+          const y = H*(pass ? 0.93 : 0.86) + hash(k*5+pass)*H*0.05;
+          ctx.fillStyle = rgb(mix([206,222,236],[255,255,255], 0.4+0.6*Math.max(0,Lv[1])*hash(k+3)));
+          ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+          ctx.fillStyle = rgb([255,255,255], 0.7);
+          ctx.beginPath(); ctx.arc(x - r*0.15, y - r*0.3, r*0.6, 0, TAU); ctx.fill();
+        }
+        ctx.fillStyle = rgb([236,244,250]); ctx.fillRect(0, H*(pass?0.97:0.92), W, H);
+      }
+    }
+  }
+
+  function initParticles(){
+    particles = [];
+    const R = mulberry32(5);
+    for (let i=0;i<70;i++) particles.push({x:R()*W, y:R()*H, d:R(), ph:R()*TAU, r:R()});
+  }
+  let lastPhi = 0;
+  function drawParticles(dt){
+    const dphi = phi - lastPhi; lastPhi = phi;
+    const kind = T.particles;
+    if (kind!=='petals') ctx.globalCompositeOperation = 'lighter';
+    for (const p of particles){
+      p.x += dphi*ppr*(0.3+p.d*0.7);
+      if (kind==='motes'){ p.x += Math.sin(time*0.5+p.ph)*0.15*dt; p.y -= (0.08+p.d*0.12)*dt; }
+      else if (kind==='spores'){ p.x += Math.sin(time*0.8+p.ph)*0.2*dt; p.y -= (0.2+p.d*0.35)*dt; }
+      else { p.x += (0.5+p.d*0.6)*dt; p.y += (0.35+p.d*0.4)*dt + Math.sin(time+p.ph)*0.2*dt; }
+      if (p.y < -10) p.y = H+10; if (p.y > H+10) p.y = -10;
+      if (p.x < -10) p.x = W+10; if (p.x > W+10) p.x = -10;
+      const tw = 0.5 + 0.5*Math.sin(time*2 + p.ph*3);
+      if (kind==='motes'){
+        ctx.fillStyle = rgb(T.sun.col, (0.25+0.5*tw)*(0.4+p.d*0.6)); ctx.beginPath(); ctx.arc(p.x,p.y,0.8+p.d*1.6,0,TAU); ctx.fill();
+      } else if (kind==='spores'){
+        const r = 0.8 + p.d*1.6;
+        ctx.globalAlpha = 0.25 + 0.45*tw;
+        ctx.drawImage(glowSprite(T.bloom.col), p.x-r*3, p.y-r*3, r*6, r*6);
+        ctx.globalAlpha = 1;
+      } else {
+        const c = [[255,150,190],[255,190,90],[255,255,255]][(p.r*3)|0];
+        ctx.fillStyle = rgb(c, 0.85);
+        ctx.beginPath(); ctx.ellipse(p.x,p.y,2.4+p.d*2,1.2+p.d,time*1.5+p.ph,0,TAU); ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawGlows(){
+    ctx.globalCompositeOperation = 'lighter';
+    for (const g of glows){
+      ctx.globalAlpha = clamp(g.a,0,1);
+      ctx.drawImage(glowSprite(g.c), g.x-g.r, g.y-g.r, g.r*2, g.r*2);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawVignette(){
+    const g = ctx.createRadialGradient(W/2,H*0.45,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.8);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,`rgba(0,0,0,${T.vignette})`);
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  }
+
+  function drawDial(){
+    const ox = W-36, oy = 36, r = 22;
+    ctx.strokeStyle = 'rgba(255,250,240,0.55)'; ctx.fillStyle = 'rgba(255,250,240,0.75)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(ox,oy,r,0,TAU); ctx.stroke();
+    for (const ru of world.ruins){
+      if (ru.type!=='pillar') continue;
+      const x = ru.c[0]*cphi - ru.c[2]*sphi, z = ru.c[0]*sphi + ru.c[2]*cphi;
+      ctx.beginPath(); ctx.arc(ox + x/2.1*r, oy - z/2.1*r, 1.8, 0, TAU); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(ox,oy,2.4,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(ox, oy+r-5); ctx.lineTo(ox-4.5, oy+r+5); ctx.lineTo(ox+4.5, oy+r+5); ctx.closePath(); ctx.fill();
+    // sun direction on the rim
+    const l = Math.hypot(Lv[0],Lv[2]) || 1;
+    ctx.fillStyle = rgb(T.sun.col);
+    ctx.beginPath(); ctx.arc(ox + Lv[0]/l*r, oy - Lv[2]/l*r, 3.6, 0, TAU); ctx.fill();
+  }
+
+  // ---------- frame ----------
+  function draw(dt){
+    cphi = Math.cos(phi); sphi = Math.sin(phi);
+    Lw = [Math.cos(T.sun.el)*Math.cos(T.sun.az), Math.sin(T.sun.el), Math.cos(T.sun.el)*Math.sin(T.sun.az)];
+    Lv = toView(Lw);
+    horizonY = H*T.horizon;
+    glows = [];
+    drawSky();
+    drawFar();
+    if (T.rays) drawRays();
+    drawPlinth();
+    const items = [];
+    for (const sg of world.segs){ const A = P(sg.a), B = P(sg.b); items.push({z:(A.z+B.z)/2, f:() => drawSeg(sg,A,B)}); }
+    for (const pd of world.pads) items.push({z:P(pd.c).z - 0.02, f:() => drawPad(pd)});
+    for (const v of world.vines) items.push({z:P(v.a).z - 0.01, f:() => drawVine(v)});
+    for (const ru of world.ruins){
+      if (ru.type==='pillar') items.push({z:P(ru.c).z, f:() => drawPillar(ru)});
+      else items.push({z:(P(ru.a).z+P(ru.b).z)/2, f:() => drawLintel(ru)});
+    }
+    items.sort((a,b) => b.z - a.z);
+    for (const it of items) it.f();
+    drawGlows();
+    drawBase();
+    drawParticles(dt);
+    drawVignette();
+    drawDial();
+  }
+
+  let last = performance.now(), fpsAcc = 0, fpsN = 0, fpsT = 0;
+  function frame(now){
+    const raw = now - last; last = now;
+    const dt = Math.min(50, raw)/16.67;
+    time = now/1000;
+    fpsAcc += raw; fpsN++;
+    if (now - fpsT > 1000){ fpsEl.textContent = Math.round(1000/(fpsAcc/fpsN)) + ' fps'; fpsAcc = 0; fpsN = 0; fpsT = now; }
+    if (!dragging){
+      if (Math.abs(vel) > 1e-4){ phi += vel*dt; vel *= Math.pow(0.93, dt); }
+      else if (!reduce && now-lastInteract > 2500){ phi += 0.0022*dt; }
+    }
+    draw(dt);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  let hintGone = false;
+  const hideHint = () => { if (!hintGone){ hint.style.opacity = '0'; hintGone = true; } };
+  cv.addEventListener('pointerdown', e => {
+    dragging = true; lastX = e.clientX; vel = 0; cv.classList.add('grabbing');
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    hideHint();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const d = (e.clientX-lastX)*0.0105; lastX = e.clientX;
+    phi += d; vel = d; lastInteract = performance.now();
+  });
+  const end = () => { if (dragging){ dragging = false; lastInteract = performance.now(); cv.classList.remove('grabbing'); } };
+  cv.addEventListener('pointerup', end);
+  cv.addEventListener('pointercancel', end);
+  stage.addEventListener('keydown', e => {
+    if (e.key==='ArrowLeft' || e.key==='ArrowRight'){
+      e.preventDefault(); vel = (e.key==='ArrowRight'?1:-1)*0.03; lastInteract = performance.now(); hideHint();
+    }
+  });
+
+  function setTheme(k){
+    themeKey = k; T = THEMES[k];
+    for (const b of document.querySelectorAll('.strata button')) b.setAttribute('aria-pressed', String(b.dataset.theme===k));
+    caption.textContent = T.caption;
+    initParticles();
+  }
+  for (const b of document.querySelectorAll('.strata button')) b.addEventListener('click', () => setTheme(b.dataset.theme));
+  document.getElementById('reseed').addEventListener('click', () => {
+    seed = 1 + Math.floor(Math.random()*9999);
+    world = genWorld(seed);
+    seedLabel.textContent = '· seed ' + seed;
+  });
+  seedLabel.textContent = '· seed ' + seed;
+
+  new ResizeObserver(resize).observe(stage);
+  resize();
+  setTheme('temple');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

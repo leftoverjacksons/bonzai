@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bonzai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: a short list of what exists so far; the game will replace this page. */
+:root{
+  color-scheme: dark;
+  --bg:#10191a; --fg:#ece3d1; --fg-2:#a9a293; --line:rgba(236,227,209,.16); --accent:#e2a75a;
+  --display:"Marcellus",Georgia,serif; --body:"Mulish","Segoe UI",system-ui,sans-serif;
+}
+html,body{background:var(--bg);color:var(--fg);margin:0}
+body{font-family:var(--body);line-height:1.65}
+main{max-width:40rem;margin:0 auto;padding-inline:16px;padding-block:48px;display:flex;flex-direction:column;gap:28px}
+h1{font-family:var(--display);font-weight:400;font-size:3rem;margin:0;line-height:1}
+p{margin:0;color:var(--fg-2)}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+a.item{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid var(--line);border-radius:4px;color:var(--fg);text-decoration:none}
+a.item:hover,a.item:focus-visible{border-color:var(--accent);outline:none}
+.n{font-family:var(--display);font-size:1.15rem}
+.d{font-size:.9rem;color:var(--fg-2)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Bonzai</h1>
+  <p>A turn-based mobile game about tending a bonsai that will not stay small, climbing through drowned and overgrown ruins. Work in progress.</p>
+  <ul>
+    <li><a class="item" href="studies/color/"><span class="n">Colour study</span><span class="d">Three strata (Atlantis, Angkor, Maya) with lighting, atmosphere and glow.</span></a></li>
+    <li><a class="item" href="studies/ink/"><span class="n">Ink study</span><span class="d">The same tree drawn as flat 2D, 2.5D ink wash, and generic 3D.</span></a></li>
+  </ul>
+</main>
+</body>
+</html>
