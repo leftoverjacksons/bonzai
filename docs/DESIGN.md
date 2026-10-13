@@ -1,0 +1,307 @@
+# Bonzai — Design Document
+
+Status: living document, pre-production. Last updated 2026-10-13.
+Owner: repository owner. Drafted with Claude from design conversations; every decision below was agreed in conversation unless marked **Proposal** or **Open**.
+
+Conventions in this document:
+- **Decided**: agreed; change only deliberately and log it in §15.
+- **Proposal**: Claude's suggestion, not yet confirmed.
+- **Open**: unresolved question; listed again in §16.
+- **TBD value**: a number to be tuned in playtesting; the value given is a starting point.
+
+---
+
+## 1. Vision
+
+A turn-based mobile game about tending a magical bonsai that refuses to stay small. It climbs, endlessly, up through a sunken labyrinth of ancient ruins (a blend of Atlantean, Angkor and Maya architecture). You play a hand of gardening actions (water, prune, wire, tether, rooting powder and more) to steer its growth around obstacles and toward the little light that reaches into the ruins. A run ends when the tree grows itself into a corner and can no longer grow.
+
+The feeling: calm, beautiful, strategic, never rushed, yet with pressure that builds as you climb, like an arcade game played at your own pace.
+
+Tone: the fantasy is played straight. It is obviously magical (a bonsai growing up through a vertical ruin), but treated sincerely, without winking.
+
+### Design pillars
+
+1. **Beautiful first.** Lush, colourful, softly lit 3D. A screenshot from any run should look worth keeping.
+2. **Strategy without a clock.** Turn-based, no timer. Pressure comes from the situation, not from time.
+3. **Planning ahead, as in Tetris.** You do not choose your pieces, only where and how to play them. Bad placements compound later.
+4. **Real plant logic.** Rules are drawn from real botany (apical dominance, phototropism, back-budding, sagging under weight) so players can predict outcomes.
+5. **One more run.** Arcade structure: endless height, rising difficulty, permanent unlocks, a gallery of past trees.
+
+### Audience and scope
+
+- **Decided:** a personal project first, polished enough to share with close friends.
+- **Decided:** optimised for playing on a phone in the browser, portrait orientation, one hand where possible.
+
+---
+
+## 2. Platform and technology
+
+| Topic | Decision |
+|---|---|
+| Platform | **Decided:** mobile web browser first; desktop browser must also work. |
+| Rendering | **Decided:** real 3D with three.js (WebGL). 2D, 2.5D canvas and ink-wash were tried and rejected (§15). |
+| Code | **Proposal:** plain ES modules, no build step for as long as possible; three.js loaded from a pinned CDN version (currently 0.160.0). |
+| Hosting | **Decided:** GitHub Pages from the public repo `leftoverjacksons/bonzai`. A claude.ai artifact copy is used for quick phone tests. |
+| Saving | **Decided:** progress is kept when the page is closed and reopened (§12). |
+| Performance target | **Proposal:** 60 fps on a recent mid-range phone, 30 fps minimum on older phones; a quality setting lowers leaf count, shadow resolution and glow. |
+
+---
+
+## 3. Core loop
+
+1. The tree has one or more **growing tips**.
+2. You hold a **hand of 3 action cards** (§5). **Decided.**
+3. You play one card onto a target (a tip, a branch, a node, an anchor in the ruins, or empty space, depending on the card).
+4. **Every growing tip then grows one step.** **Decided** (option "1a"): the whole tree advances every turn. The card steers or modifies; it is not the only source of growth.
+5. The world clock advances one hour (§8), the hand refills, and the camera follows the highest growth.
+6. Repeat until the tree **stagnates** (§4.6).
+
+- **Decided:** no timer. Turns wait for the player.
+- **Decided:** a **hold** slot (keep one card for later) is unlocked much later in progression, not available at the start.
+
+---
+
+## 4. The tree
+
+### 4.1 Structure
+
+The tree is a graph of **segments** (pieces of trunk or branch) joined at **nodes**. Each branch ends in a **tip**. Tips grow; segments thicken over time.
+
+### 4.2 Vigor
+
+Each tip has **vigor**, a growth budget. One step of growth uses vigor. Vigor comes from the roots and is split among tips.
+
+### 4.3 Rules from real plant biology
+
+| Real effect | Game rule | Status |
+|---|---|---|
+| **Apical dominance:** the top tip suppresses buds below it | The highest tip receives the largest share of vigor; lower tips grow slowly unless helped. | Proposal |
+| **Pruning releases the buds below** | Cutting a branch converts its removed length into vigor, shared among the remaining tips in proportion. | Decided (from original idea) |
+| **Phototropism:** growth bends toward light | Tips bend toward the brightest light opening nearby. Light reaching a tip increases its vigor. | Proposal |
+| **Back-budding** | Rooting powder makes a new bud on old wood. | Decided (from original idea) |
+| **Sagging under weight** | Long, heavy, unsupported side branches droop over turns. Tethering to the ruins holds them up. | Decided |
+
+### 4.4 Stalled tips
+
+A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does not grow, so it is a cost the player must remove by pruning, re-budding around it, or wiring it in a new direction. **Decided** (from the original idea that branches "get stuck, so you re-branch").
+
+### 4.5 Sagging and tethers
+
+- **Decided:** branches sag under their own length and foliage weight unless supported.
+- **Decided:** wiring means tying a branch to something in the ruins (an iron ring, a statue's hand, a chain, a lintel, a carved knob). The tethered branch is held up and grows toward the anchor. The tree behaves partly like a vine climbing the ruins (the original "vining bonsai, Jack and the Beanstalk" idea; real model: strangler figs on Angkor's Ta Prohm).
+- **Proposal:** a sagging branch can droop into an obstacle and stall, so neglecting support has consequences.
+- Whole-tree balance and toppling were considered and dropped in favour of sagging and tethers (§15).
+
+### 4.6 Ending a run: stagnation
+
+- **Decided:** the run ends when no tip can grow any more (all stalled, dead or blocked), i.e. you grew into a corner.
+- **Decided:** the game **warns** before this happens (for example "last growing tip", shown clearly on the tree and in the HUD).
+- **Decided:** no rising "shade line" or other time pressure; pressure comes from the labyrinth and difficulty, not a chasing threat.
+- **Open:** whether a run also offers one rescue (for example a single emergency card per run).
+
+---
+
+## 5. Actions (cards)
+
+**Decided:** actions arrive as random cards, a hand of 3 at a time. Some are helpful, and some are **forced** awkward pieces (like Tetris's S and Z) that must be played somewhere.
+
+Initial list. Names and numbers are working values.
+
+### Helpful
+
+| Card | Target | Effect | Status |
+|---|---|---|---|
+| Water | branch | Boosts vigor of that branch (may spread to neighbours). | Decided (original) |
+| Rooting powder | node on old wood | Sprouts a new bud / branch. | Decided (original) |
+| Prune | segment | Cuts there; removed growth becomes vigor for the rest (§4.3). | Decided (original) |
+| Tether (wire) | tip + anchor | Ties the branch to a ruin anchor; it grows toward it and stops sagging. | Decided |
+| Fertilizer | whole tree | Strong boost to all tips; **Proposal:** also increases difficulty or sag for a few turns. | Proposal |
+| Pinch | tip | Stops a tip; thickens its parent (stronger, sags less). | Proposal |
+| Graft | two nearby branches | Joins them, merging vigor. | Proposal |
+| Lantern / light | empty space | Creates light that attracts nearby tips for a few turns. | Proposal |
+
+### Forced or negative
+
+| Card | Effect | Status |
+|---|---|---|
+| Shears (mandatory cut) | You must cut somewhere this turn. | Proposal |
+| Pests | Placed on a branch, they drain it each turn until cleared. | Proposal |
+| Wind gust | Pushes all tips one way; tethers resist it. | Proposal |
+| Rockfall | A block drops into the shaft, creating a new obstacle. | Proposal |
+
+- **Decided:** new actions ("powers") are **unlocked** at height thresholds and are available from the next run onward (§9).
+- **Open:** whether cards are drawn uniformly or weighted by situation (for example more pruning when many tips are stalled).
+
+---
+
+## 6. World: the ruin labyrinth
+
+### 6.1 Setting
+
+- **Decided:** the tree grows *inside* the ruins, not in an open courtyard. Think of a vertical labyrinth or shaft: walls, galleries, arches, beams and fallen blocks all around, with **limited light** entering through gaps, windows and broken roofs.
+- **Decided:** the ruins have an ancient, ruinous feel and are a **blend of Atlantis, Angkor and Maya** (§10.3).
+- **Decided:** the world is effectively **unlimited in height** (§9).
+
+### 6.2 What the ruins do in play
+
+| Element | Role | Status |
+|---|---|---|
+| Walls, beams, overhangs, collapsed floors | Obstacles; tips that hit them stall. | Decided |
+| Anchors (rings, statue hands, chains, carved knobs) | Tether points. | Decided |
+| Light openings (windows, cracks, broken roofs) | Light sources; tips bend toward them and gain vigor. | Proposal |
+| Light that moves with the time of day | Shafts of sunlight sweep across the shaft as hours pass, so where light falls depends on the turn. | Proposal |
+| Ruin features that close off routes as you climb | Main source of rising difficulty (§9). | Proposal |
+
+### 6.3 Generation
+
+- **Proposal:** the shaft is generated procedurally in vertical chunks from the run's seed. Chunk templates are hand-designed to stay fair (there is always at least one route upward), then varied and dressed procedurally.
+- **Decided:** strata (difficulty bands) are predefined at fixed height intervals (§9).
+
+---
+
+## 7. Camera and controls
+
+- **Decided:** the camera is close to the tree (much closer than early studies). It follows the highest growth, so the base drops out of view as you climb.
+- **Decided:** the view can rotate around the vertical axis; branches and obstacles hide behind each other, and rotating to see them is part of play.
+- **Proposal:** walls between the camera and the tree fade out (cut-away, as in diorama games), so the tree stays visible while still enclosed.
+- **Proposal:** drag to orbit, pinch to zoom, tap a card then tap a target. A small side silhouette or map shows the whole tree and where you are.
+
+---
+
+## 8. Day and night
+
+- **Decided:** a day/night cycle runs during each run and advances with turns.
+- **TBD value:** 1 turn = 1 hour, 24 turns per day.
+- **Decided:** the tree must stay clearly visible at night (night is darker and moodier, never unreadable).
+- Night look (current study): moonlight, stars, fireflies, blossoms that glow, magical glow in the stone.
+- **Open:** whether day and night change the rules. Proposals: light openings give vigor only by day; some cards only work at night (for example moonlight bloom); certain hazards come at night.
+
+---
+
+## 9. Run structure and progression (arcade)
+
+- **Decided:** arcade style. A run is effectively unlimited in height, throttled by **rising difficulty**.
+- **Decided:** **strata** are predefined bands every *X* height. Each new stratum raises difficulty and can introduce new obstacle types or rules. **TBD value:** X, and what each stratum adds.
+- **Decided:** the visual theme does **not** change between strata within a run (§10.3).
+- **Decided:** reaching certain height thresholds **unlocks new powers** (cards, the hold slot, other upgrades) for future runs.
+- **Decided:** trees that pass a height threshold are saved to a **gallery** where they stand side by side and can be visited.
+- **Proposal:** score is height reached, with possibly a form or beauty bonus later.
+- **Open:** run length is open-ended by design; target a typical first run of about 10 minutes and skilled runs much longer.
+
+---
+
+## 10. Art direction
+
+### 10.1 Overall
+
+- **Decided:** lush and colourful, beautiful to play. Soft, believable lighting: sun and moon shadows, rim light, fog, glow on bright magical things.
+- **Decided:** real 3D. Branches must be organic and continuous. Visible seams, cartoon-like strokes and flat-vector looks were rejected (§15).
+- **Decided:** the plant must look organic: a gnarled, tapered trunk with root flare, curving movement and textured bark. This is the current focus of rendering work.
+
+### 10.2 Enclosure and light
+
+- **Decided:** the tree is surrounded by ruins with limited light coming through; it is not an open scene.
+- **Proposal:** visible light shafts (dusty sunbeams) through openings, moving with the time of day.
+
+### 10.3 Culture blend per run
+
+- **Decided:** every run uses a **blend of all three** architectural styles, and each new run is a **new blend**. The blend stays the same for the whole run.
+- Source styles:
+  - **Atlantis:** pale weathered marble and teal-green stone, fluted columns, rings of glowing orichalcum (copper-gold metal from Plato's account), spirals and concentric circles, water and coral.
+  - **Angkor:** warm sandstone and laterite, stacked blocks, lotus-petal bands, baluster windows, tiered lotus-bud towers, strangler-fig roots gripping stone.
+  - **Maya:** pale limestone with traces of red paint, stepped forms and corbel (stepped) arches, glyph panels, jade green.
+- **Proposal:** the blend is a set of three weights drawn from the run seed. It sets stone colour, which carved motifs appear, which architectural pieces are used, the colour of magical glow (cyan, gold, jade), and whether there is standing water.
+
+### 10.4 Rejected looks
+
+- Ink wash (sumi-e) in 2.5D: liked the beauty, but wanted lush colour.
+- 2.5D painted canvas in colour: branches looked cartoon-like and joints between pieces looked bad.
+
+---
+
+## 11. Audio
+
+- **Decided:** generative tones tied to growth (each growth event plays a note, so the tree "composes" as it grows).
+- **Proposal:** pentatonic or modal scales chosen from the run's blend; ambient bed (water drips, insects, wind) changing with day and night.
+- **Open:** whether there is any music besides the generative tones.
+
+---
+
+## 12. Saving and data
+
+- **Decided:** progress is retained when the page is closed and reopened.
+- **Proposal:** save a run as its **seed plus the list of moves**. Replaying the moves rebuilds the exact tree. This keeps saves tiny, makes the gallery cheap (each gallery tree is a seed and move list), and later allows sharing a tree with a friend as a short code.
+- **Proposal:** autosave after every turn and when the app goes to the background, using browser local storage (`localStorage` or IndexedDB). Caveat: data lives in one browser on one device and is lost if site data is cleared. Cross-device sync is out of scope for now.
+- Determinism requirement: all randomness must come from the seeded generator so replays are exact.
+
+---
+
+## 13. Technical architecture (proposal)
+
+- **Simulation** (pure logic, no rendering): tree graph, vigor, growth, collisions with the labyrinth, cards and deck, scoring. Deterministic and testable.
+- **World generation:** chunked labyrinth from seed and stratum.
+- **Renderer:** three.js scene built from simulation state. Current techniques (from `studies/3d`): tapered tube meshes merged per tree, instanced leaf cards with wind sway in the shader, shadow-casting sun or moon, procedural sky, fog, bloom.
+- **UI layer:** HTML overlay for hand, HUD, menus (keeps text crisp and accessible).
+- **Persistence:** save/load of seed and move log, unlocks and gallery.
+
+---
+
+## 14. Milestones (proposal)
+
+| # | Milestone | Content |
+|---|---|---|
+| M0 | Look studies | Done: ink, colour 2.5D, 3D. 3D chosen. |
+| M1 | Rendering slice | Organic trunk, enclosed labyrinth with limited light, readable night, culture blend per run. **In progress.** |
+| M2 | Rules prototype | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. |
+| M3 | Playable run | Cards in hand, labyrinth chunks, camera follow, strata and difficulty, day/night by turn, save and resume. |
+| M4 | Meta progression | Unlocks, gallery, hold slot. |
+| M5 | Polish and share | Audio, performance tiers, tutorial, sharing a tree by code, GitHub Pages release for friends. |
+
+---
+
+## 15. Decision log
+
+| Date | Decision | Alternatives considered | Reason |
+|---|---|---|---|
+| 2026-10-13 | Turn-based, no timer | Real-time growth; turn timer | Strategy without time pressure. |
+| 2026-10-13 | Hand of 3; hold unlocked late | Fixed Tetris-style queue | More strategy; hold as progression reward. |
+| 2026-10-13 | Every tip grows each turn ("1a") | Only the targeted part grows | Whole tree keeps moving; Tetris-like pressure. |
+| 2026-10-13 | Stagnation ends a run, with a warning | Rising shade line; toppling | Low pressure; failure comes from your own choices. |
+| 2026-10-13 | Hybrid → arcade structure with unlocks and gallery | Pure zen single tree; short fixed runs | "One more run"; runs felt too small. |
+| 2026-10-13 | Ruins: Atlantis, Angkor, Maya | Japanese stone; one culture | Lush, fantastical, varied. |
+| 2026-10-13 | Sagging and tethers | Whole-tree balance / toppling | Gentler; makes the ruins necessary. |
+| 2026-10-13 | Day/night cycle advancing with turns | Fixed lighting per stratum | Variety and mood within a run. |
+| 2026-10-13 | Real 3D (three.js) | 2D; 2.5D ink wash; 2.5D colour | 2.5D branches looked cartoon-like, joins looked bad; wanted closer, richer view. |
+| 2026-10-13 | One blended theme per run, new blend each run | Theme changes per stratum | Consistency within a run, variety across runs. |
+| 2026-10-13 | Tree enclosed by ruins with limited light | Open courtyard | Labyrinth feel; light becomes meaningful. |
+| 2026-10-13 | Night must stay readable | Realistic darkness | Playability on a phone. |
+| 2026-10-13 | GitHub Pages hosting (public repo) | Artifact only | Shareable with friends; artifact kept for quick tests. |
+| 2026-10-13 | Generative tones tied to growth | None; fixed music | Tree "composes" as it grows. |
+
+---
+
+## 16. Open questions
+
+1. Height interval *X* between strata, and what each stratum adds.
+2. Do day and night change the rules (light vigor, night-only cards, night hazards)?
+3. One rescue per run before stagnation?
+4. Card draw: uniform or weighted by situation?
+5. Score: height only, or height plus a beauty bonus?
+6. Which powers unlock at which heights, and the gallery height threshold.
+7. Music beyond generative tones.
+8. Exact controls for targeting on a small screen (tap-tap vs drag).
+9. How much the camera may zoom out to show the whole tree, given the base should drop out of view.
+
+---
+
+## 17. Glossary
+
+- **Tip:** the growing end of a branch.
+- **Vigor:** a tip's growth budget.
+- **Stall:** a tip blocked by an obstacle; it still uses vigor.
+- **Stagnation:** no tip can grow; the run ends.
+- **Tether (wire):** tying a branch to an anchor in the ruins.
+- **Stratum (plural strata):** a predefined height band that raises difficulty.
+- **Blend:** the per-run mix of Atlantis, Angkor and Maya styles.
+- **Run:** one game from a new seed until stagnation.
+- **2.5D:** 3D positions drawn as flat 2D strokes; tried and rejected.
