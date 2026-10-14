@@ -99,6 +99,15 @@ export function solidsNear(g, y0, y1){
   for (const m of g.modules) if (m.y1 >= y0 && m.y0 <= y1) for (const o of m.solids) out.push(o);
   return out;
 }
+// The highest stone surface at (x, z) between yBot and yTop (or yBot if none): where rain lands.
+export function surfaceBelow(g, x, z, yTop, yBot){
+  let best = yBot;
+  for (const o of solidsNear(g, yBot, yTop)){
+    const top = o.cy + o.hy;
+    if (top > best && top < yTop && insideSolid(o, x, o.cy, z, 0)) best = top;
+  }
+  return best;
+}
 export function blockedAt(g, x, y, z, m=0.05){
   if (y < 0.02 || Math.hypot(x, z) > G.REACH + 0.15) return true;
   for (const o of solidsNear(g, y-1, y+1)) if (insideSolid(o, x, y, z, m)) return true;

@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { GCFG, STYLES, CARDS, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt } from './sim.js';
+import { GCFG, STYLES, CARDS, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, surfaceBelow } from './sim.js';
 
 const $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
@@ -414,6 +414,9 @@ function palette(el){
 }
 const sunDir = new THREE.Vector3(), moonDir = new THREE.Vector3(), MOTE_DAY = new THREE.Color(0xffe6bf);
 let hours = GCFG.START_HOUR, hoursTo = hours, nightK = 0;
+// weather (visual only): rainK and mistK ease toward targets set by the turn; wetK lags rain and dries slowly
+let rainK = 0, mistK = 0, wetK = 0;
+const RAIN_GREY = new THREE.Color(0x8a949c), RAIN_GREY_NIGHT = new THREE.Color(0x1c2228);
 function applyTime(){
   const tod = hours/24, ang = (tod-0.25)*TAU;
   const el = Math.asin(Math.sin(ang)*Math.sin(1.15));
@@ -426,11 +429,19 @@ function applyTime(){
   u.sunDir.value.copy(sunDir); u.moonDir.value.copy(moonDir);
   u.sunVis.value = clamp((el+0.06)*8, 0, 1); u.moonVis.value = clamp((-el-0.05)*6, 0, 1); u.stars.value = p.n('stars');
   lerpHex(p.a.fog, p.b.fog, p.t, scene.fog.color);
+  if (rainK > 0.001){
+    const grey = RAIN_GREY.clone().lerp(RAIN_GREY_NIGHT, nightK);
+    u.top.value.lerp(grey, rainK*0.7); u.hor.value.lerp(grey, rainK*0.6); scene.fog.color.lerp(grey, rainK*0.6);
+  }
+  scene.fog.density = 0.025 + 0.04*mistK;
   const useSun = el > -0.06;
   sun.position.copy(useSun ? sunDir : moonDir).multiplyScalar(18).add(sun.target.position);
   lerpHex(p.a.light, p.b.light, p.t, sun.color);
-  sun.intensity = p.n('li') * (useSun ? clamp((el+0.06)*10, 0, 1) : clamp((-el-0.06)*8, 0, 1));
-  const dayLight = useSun ? clamp(el*5, 0, 1) : 0;
+  sun.intensity = p.n('li') * (useSun ? clamp((el+0.06)*10, 0, 1) : clamp((-el-0.06)*8, 0, 1)) * (1 - 0.6*rainK);
+  u.sunVis.value *= 1 - rainK; u.moonVis.value *= 1 - rainK; u.stars.value *= 1 - rainK;
+  if (world.stoneMat){ world.stoneMat.roughness = 0.95 - 0.4*wetK; world.stoneMat.color.copy(world.stoneBase).multiplyScalar(1 - 0.18*wetK); }
+  leafMat.roughness = 0.7 - 0.3*wetK;
+  const dayLight = (useSun ? clamp(el*5, 0, 1) : 0)*(1 - rainK);
   lerpHex(p.a.hs, p.b.hs, p.t, hemi.color); lerpHex(p.a.hg, p.b.hg, p.t, hemi.groundColor);
   hemi.intensity = p.n('hi'); amb.intensity = p.n('amb');
   renderer.toneMappingExposure = p.n('exp');
@@ -467,7 +478,7 @@ function resetWorld(){
   const glowCol = mixW(GLOW, w);
   const glowMat = addCutaway(new THREE.MeshStandardMaterial({color:glowCol, emissive:glowCol, emissiveIntensity:0.4, roughness:0.35, metalness:0.6}), true);
   barkMat.emissive.copy(glowCol); bloomMat.emissive.copy(glowCol);
-  world = {group:new THREE.Group(), built:0, beams:[], glow:glowCol, stoneMat, glowMat, disposables:[stoneTex, stoneMat, glowMat]};
+  world = {group:new THREE.Group(), built:0, beams:[], glow:glowCol, stoneMat, stoneBase:stoneMat.color.clone(), glowMat, disposables:[stoneTex, stoneMat, glowMat]};
   scene.add(world.group);
 }
 function buildModule(m){
@@ -960,6 +971,7 @@ const ICON = {
   wire:'<svg viewBox="0 0 24 24"><circle cx="17" cy="7" r="3.5"/><path d="M3 20c2.5-1 2-4 4.5-4.5S10 18 12.5 16s1-5 3.5-6"/></svg>',
   root:'<svg viewBox="0 0 24 24"><path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"/><path d="M12 11v6M9 14h6"/></svg>',
 };
+const RAIN = '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><path d="M7 15a4 4 0 0 1 .5-8 5 5 0 0 1 9.5 1.5A3.3 3.3 0 0 1 17 15z"/><path d="M9 18l-1 3M13 18l-1 3M17 18l-1 3"/></svg>';
 const SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>', MOON = '<svg viewBox="0 0 24 24"><path d="M15 3a9 9 0 1 0 6 13A7 7 0 0 1 15 3z"/></svg>';
 let tipFor = -1;
 function showTip(i){
@@ -1007,7 +1019,7 @@ function renderUI(){
   $('hpbar').style.width = hp + '%';
   $('hpbar').style.background = hp > 65 ? '#9be37a' : hp > 40 ? '#ffd166' : '#ff6a55';
   const hr = hourOf(g.turn);
-  $('clock').innerHTML = (isDay(g.turn) ? SUN : MOON) + `<span>${String(Math.floor(hr)).padStart(2,'0')}:00</span>`;
+  $('clock').innerHTML = (rainingAt(g.turn) ? RAIN : isDay(g.turn) ? SUN : MOON) + `<span>${String(Math.floor(hr)).padStart(2,'0')}:00</span>`;
   if (!$('menu').hidden) renderMenu();
 }
 function renderMenu(){
@@ -1020,7 +1032,7 @@ function renderMenu(){
   const m = g.modules.find(m => g.follow.y >= m.y0 && g.follow.y < m.y1);
   $('m-place').textContent = (m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]} · stratum ${m.k + 1}` : '')
     + (sliding ? ` · ${sliding} creeping along stone` : '') + (stuck ? ` · ${stuck} stuck` : '');
-  $('m-time').textContent = `Day ${dayOf(g.turn)}, ${String(Math.floor(hourOf(g.turn))).padStart(2,'0')}:00 · turn ${g.turn + 1}`;
+  $('m-time').textContent = `Day ${dayOf(g.turn)}, ${String(Math.floor(hourOf(g.turn))).padStart(2,'0')}:00 · turn ${g.turn + 1}` + (rainingAt(g.turn) ? ' · rain' : mistAt(g.turn) ? ' · mist' : '');
   $('m-run').textContent = `Tree ${g.seed} · ` + STYLES.map((s,i) => [s, Math.round(g.blend[i]*100)]).sort((a,b) => b[1]-a[1]).map(([s,p]) => `${s} ${p}%`).join(' · ');
 }
 $('confirm').addEventListener('click', () => {
@@ -1139,7 +1151,7 @@ function stepEnv(dt, t){
   });
   fallMesh.instanceMatrix.needsUpdate = true;
   // butterflies fade out at dusk; fireflies (the motes) take over at night
-  const show = clamp(1 - nightK*2.5, 0, 1);
+  const show = clamp(1 - nightK*2.5, 0, 1)*(1 - rainK);  // butterflies shelter from rain
   wingMesh.visible = show > 0.02;
   butter.forEach((b, i) => {
     const a = b.ph + t*0.3*b.sp, r = b.r + 0.25*Math.sin(t*0.5 + b.ph);
@@ -1154,6 +1166,77 @@ function stepEnv(dt, t){
     }
   });
   wingMesh.instanceMatrix.needsUpdate = true;
+}
+
+// ---------- weather: rain and mist (visual only) ----------
+// Rain comes in seeded spells of four turns, so a replay or undo brings back the same weather. Mist gathers in the
+// early morning and in rain.
+function rainingAt(turn){ return (hashInt(g.seed, 31, Math.floor(turn/4)) % 100) < 22; }
+function mistAt(turn){ const h = hourOf(turn); return Math.max(rainingAt(turn) ? 0.8 : 0, h >= 4 && h < 10 ? 0.7 : 0); }
+const DROPS = 420, SPLASH = 90;
+const dropPos = new Float32Array(DROPS*6), drops = Array.from({length:DROPS}, () => ({y:-99, floor:0, x:0, z:0, v:0}));
+const dropGeo = new THREE.BufferGeometry(); dropGeo.setAttribute('position', new THREE.BufferAttribute(dropPos, 3));
+const dropMat = new THREE.LineBasicMaterial({color:0xc8d8e8, transparent:true, opacity:0, depthWrite:false});
+const rainLines = new THREE.LineSegments(dropGeo, dropMat); rainLines.frustumCulled = false; rainLines.renderOrder = 6; scene.add(rainLines);
+const splashPos = new Float32Array(SPLASH*3).fill(-99), splashAge = new Float32Array(SPLASH).fill(9); let splashNext = 0;
+const splashGeo = new THREE.BufferGeometry(); splashGeo.setAttribute('position', new THREE.BufferAttribute(splashPos, 3));
+const splashMat = new THREE.PointsMaterial({map:spriteTex, size:0.05, transparent:true, opacity:0, depthWrite:false, color:0xdde8f0});
+const splashes = new THREE.Points(splashGeo, splashMat); splashes.frustumCulled = false; scene.add(splashes);
+const mistTex = canvasTex(128, 128, (c) => {
+  const R = mulberry32(5);
+  for (let i=0;i<14;i++){
+    const x = 34 + R()*60, y = 40 + R()*48, r = 18 + R()*26, rg = c.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, 'rgba(255,255,255,0.35)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = rg; c.fillRect(0, 0, 128, 128);
+  }
+}, false);
+const MIST = 9, mists = [];
+for (let i=0;i<MIST;i++){
+  const m = new THREE.Sprite(new THREE.SpriteMaterial({map:mistTex, transparent:true, opacity:0, depthWrite:false, color:0xeef2f4}));
+  m.userData = {a:envR()*TAU, r:0.8 + envR()*2.4, y:-1.4 + envR()*3.2, s:2.6 + envR()*2.2, sp:0.02 + envR()*0.03};
+  m.renderOrder = 7; scene.add(m); mists.push(m);
+}
+function respawnDrop(d, top){
+  const a = envR()*TAU, r = Math.sqrt(envR())*3.6;
+  d.x = Math.cos(a)*r + cam.focus.x*0.3; d.z = Math.sin(a)*r + cam.focus.z*0.3;
+  d.y = top - envR()*6; d.v = 6.5 + envR()*2;
+  d.floor = surfaceBelow(g, d.x, d.z, d.y, Math.max(-0.75, top - 9));
+}
+function stepWeather(dt, t, ease){
+  if (!g) return;  // ease: real elapsed time, so fades take the same time at any frame rate
+  const tgtRain = rainingAt(g.turn) ? 1 : 0, tgtMist = mistAt(g.turn);
+  rainK += (tgtRain - rainK)*Math.min(1, ease*0.35);
+  mistK += (tgtMist - mistK)*Math.min(1, ease*0.25);
+  wetK = rainK > wetK ? wetK + (rainK - wetK)*Math.min(1, ease*0.5) : wetK + (rainK - wetK)*Math.min(1, ease*0.04);
+  const top = cam.focus.y + 4.5, slant = 0.6 + 1.2*windU.value;
+  rainLines.visible = rainK > 0.01;
+  dropMat.opacity = 0.55*rainK;
+  if (rainLines.visible){
+    for (let i=0;i<DROPS;i++){
+      const d = drops[i];
+      if (d.y <= d.floor || d.y < cam.focus.y - 5){
+        if (d.y > -90 && d.y <= d.floor && envR() < rainK){ const k = splashNext++ % SPLASH; splashPos[k*3] = d.x; splashPos[k*3+1] = d.floor + 0.02; splashPos[k*3+2] = d.z; splashAge[k] = 0; }
+        respawnDrop(d, top);
+        if (i/DROPS > rainK){ d.y = -99; d.floor = -100; }  // thin the rain as it starts and stops
+      }
+      d.y -= d.v*dt; d.x += windDir.x*slant*dt; d.z += windDir.z*slant*dt;
+      const o = i*6, len = 0.3;
+      dropPos[o] = d.x; dropPos[o+1] = d.y; dropPos[o+2] = d.z;
+      dropPos[o+3] = d.x - windDir.x*slant/d.v*len; dropPos[o+4] = d.y + len; dropPos[o+5] = d.z - windDir.z*slant/d.v*len;
+    }
+    dropGeo.attributes.position.needsUpdate = true;
+  }
+  for (let k=0;k<SPLASH;k++){ splashAge[k] += dt; if (splashAge[k] > 0.18) splashPos[k*3+1] = -99; }
+  splashGeo.attributes.position.needsUpdate = true;
+  splashMat.opacity = 0.6*rainK; splashes.visible = rainK > 0.01;
+  // mist banks drift slowly with the wind around the view
+  for (const m of mists){
+    const u = m.userData; u.a += dt*u.sp*(1 + windU.value);
+    m.position.set(Math.cos(u.a)*u.r, cam.focus.y + u.y + 0.15*Math.sin(t*0.1 + u.a*3), Math.sin(u.a)*u.r);
+    m.scale.setScalar(u.s);
+    m.material.opacity = 0.22*mistK*(1 - 0.5*nightK);
+    m.visible = mistK > 0.01;
+  }
 }
 
 const clock = new THREE.Clock();
@@ -1175,7 +1258,7 @@ function frame(){
   sky.position.copy(camera.position);
   cutU.cam.value.copy(camera.position); cutU.focus.value.copy(cam.focus);
   const t = timeU.value;
-  stepEnv(dt, t);
+  stepEnv(dt, t); stepWeather(dt, t, Math.min(raw, 0.5));
   for (let i=0;i<MOTES;i++){
     const [a, r, y, ph, sp] = moteSeed[i], aa = a + t*0.05*sp;
     motePos[i*3] = Math.cos(aa)*r + Math.sin(t*0.7*sp+ph)*0.15;

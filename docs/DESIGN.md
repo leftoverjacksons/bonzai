@@ -317,7 +317,10 @@ Earlier list (v0 ideas, kept for reference):
 - **Sway:** the whole tree sways gently as one piece (a smooth displacement field in world space, zero at the root flare, increasing with height), so wood, leaves and figs stay joined. Fig leaves flutter on their long stalks, more in a gust.
 - **Falling leaves:** old leaves turn yellow and drift down from shoots near the view, more often in gusts.
 - **Butterflies** wander around the foliage by day; at night the fireflies take over.
-- Ideas for later: rain and mist, water dripping into pools, birds crossing the sky, dust stirred by a gust, petals or seeds from vines on the ruins.
+- **Rain (2026-10-14, visual only):** spells of four turns, seeded per tree (about one turn in five), so an undo brings back the same weather. Streaks slant with the wind and stop on the stone they hit, with small splashes; under a roof you only see rain through the openings. The sky greys, sunlight and sunbeams fade, stone turns darker and glossy while wet and dries slowly afterwards, leaves turn glossier, butterflies shelter. The clock shows a rain cloud.
+- **Mist:** drifting banks of mist and thicker fog in rain and in the early morning (04:00 to 10:00).
+- Weather does not change the rules. Possible later: rain feeding the tree, dry spells (the temple fig is dry-season deciduous), wind snapping long unwired shoots.
+- Ideas for later: water dripping into pools, birds crossing the sky, dust stirred by a gust, petals or seeds from vines on the ruins.
 
 ### 10.4 Rejected looks
 
@@ -412,6 +415,7 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
 | 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
 | 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
+| 2026-10-14 | Rain and mist, visual only | Weather that changes the rules | Atmosphere first; rules only with a good reason. |
 | 2026-10-14 | Undo last card, in the menu | No undo | Requested; cheap because a run is a seed plus a move list. |
 | 2026-10-14 | Strata v1: 8 m bands; ruins close in and shoots grow 15% slower per band (working values) | Rule changes per band; new obstacle types | Smallest change that makes height harder; grounded in the hydraulic limit on tree height. |
 
