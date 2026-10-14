@@ -34,8 +34,8 @@ export const GCFG = {
   HAND: 3,              // cards per hand; all must be played, in any order; never three the same
   DECK: {cut:0.38, pinch:0.38, wire:0.12, root:0.12},
   SENSE_R: 0.8,         // shoots sense brighter space this far away
-  SENSE: 1.2,           // how much that wider sense steers, relative to open sky at the tip
-  SLIDE_SPEED: 0.5,     // a shoot creeping along stone grows at this fraction of its speed
+  SENSE: 0.8,           // how much that wider sense steers, relative to open sky at the tip
+  SLIDE_SPEED: 0.35,    // a shoot creeping along stone grows at this fraction of its speed
   STONE_GRACE: 2,       // turns against stone before a fully blocked shoot starts losing health
   THICKEN: 0.006,       // most a branch's radius can grow per turn (m)
   REACH: 2.3,           // the tree's horizontal domain (radius)

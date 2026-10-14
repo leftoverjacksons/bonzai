@@ -26,14 +26,14 @@ body{font-family:var(--body);font-size:15px;user-select:none;-webkit-user-select
 .left{display:flex;flex-direction:column;gap:3px;text-shadow:0 1px 8px rgba(0,0,0,.7);min-width:0}
 .h{font-family:var(--display);font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
 .sub{font-size:.74rem;color:var(--fg-2);letter-spacing:.02em;font-variant-numeric:tabular-nums}
-.hp{display:flex;align-items:center;gap:8px;font-size:.78rem;font-weight:700;font-variant-numeric:tabular-nums}
+.hp{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:.78rem;font-weight:700;font-variant-numeric:tabular-nums}
 .bar{width:96px;height:7px;border-radius:999px;background:rgba(241,233,216,.18);overflow:hidden}
 .bar i{display:block;height:100%;border-radius:999px;transition:width .5s,background .5s}
 .right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .pill{font-variant-numeric:tabular-nums;font-size:.76rem;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 11px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap}
 .small{font:inherit;font-size:.76rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
-.mode{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 214px);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.mode{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 250px);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
 .mode > *{pointer-events:auto}
 #toasts{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 150px);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
 .toast{background:var(--glass-2);border:1px solid var(--line);border-radius:12px;padding:7px 12px;font-size:.83rem;max-width:28rem;text-align:center;transition:opacity .5s,transform .5s}
@@ -50,7 +50,11 @@ body{font-family:var(--body);font-size:15px;user-select:none;-webkit-user-select
 .actions{display:flex;gap:8px;align-items:center}
 #confirm{font:inherit;font-weight:800;font-size:.95rem;color:#22180c;background:var(--accent);border:0;border-radius:999px;padding:10px 22px;cursor:pointer}
 #confirm:disabled{opacity:.4;cursor:default}
-.nextrow{display:flex;gap:6px;align-items:center;font-size:.7rem;color:var(--fg-2);letter-spacing:.06em}
+.handrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.hcard{position:relative;overflow:hidden;font:inherit;font-family:var(--display);font-size:1rem;color:var(--fg);background:var(--glass-2);border:1px solid var(--line);border-radius:10px;padding:9px 8px 9px 14px;text-align:left;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;text-overflow:ellipsis}
+.hcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--stripe,#888)}
+.hcard[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);transform:translateY(-3px)}
+#handinfo{font-size:.7rem;color:var(--fg-2);letter-spacing:.03em;text-align:center}
 .chip{position:relative;overflow:hidden;font-size:.76rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:4px 10px 4px 12px;letter-spacing:0}
 .chip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--stripe,#888)}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -102,28 +106,31 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 <div class="hud bottom">
   <div class="deck">
     <div id="current">
-      <div class="cardhead"><span id="cardname">Cut</span><span class="lbl">This turn · forced</span></div>
+      <div class="cardhead"><span id="cardname">Cut</span><span class="lbl">Forced</span></div>
       <span id="cardtext"></span>
       <span id="prompt"></span>
       <div class="actions"><button type="button" id="confirm" disabled>Cut here</button><button type="button" class="small" id="cancel" hidden>Choose again</button></div>
     </div>
-    <div class="nextrow"><span>NEXT</span><span id="next" class="row" style="justify-content:flex-start"></span></div>
+    <div class="handrow" id="hand"></div>
+    <span id="handinfo"></span>
   </div>
 </div>
 
 <div class="sheet" id="about" hidden>
   <div class="box" role="dialog" aria-labelledby="abt">
     <h2 id="abt">How to play</h2>
-    <p>Your temple fig grows by itself, toward the light. Left alone it gets leggy, crowded and starved. Your job is the gardener's: <b>one forced card every turn</b>. You choose only where to use it. The next three cards are shown.</p>
+    <p>Your temple fig grows by itself, toward the light. Left alone it gets leggy, crowded and starved. Your job is the gardener's: you hold <b>three cards and must play all three</b>, in any order; the tree grows after each one. A hand is never three of the same card.</p>
     <ul>
       <li><b>Pinch</b> a shoot: it stops, and buds just behind it wake. Denser, more compact foliage, and its energy goes to the rest.</li>
       <li><b>Cut</b> a branch: everything beyond is removed and the nearest bud behind the cut wakes. Swipe along the branch to move the cut before you confirm.</li>
       <li><b>Wire</b> a shoot to an iron ring on the ruins: it grows toward the ring and will not sag.</li>
+      <li><b>Rooting powder</b>: wake a dormant bud of your choice on old wood. It grows the way it points.</li>
     </ul>
-    <p>The highest shoots take most of the energy. Shoots weaken when they press against stone, sit in shade, go hungry, or run long without branching; long runs sag and can snap. Weak shoots die back to dead wood. If no shoots are left, the run ends. Score is height times average health.</p>
+    <p>Shoots bend toward brighter space nearby, and a shoot that meets stone creeps slowly along it toward the light (orange line). The highest shoots take most of the energy. Shoots weaken when they are stuck against stone for more than two turns, sit in shade, go hungry, or run long without branching; long runs sag and can snap. Weak shoots die back to dead wood. If no shoots are left, the run ends. Score is height times average health.</p>
     <div class="legend">
       <span class="sw" style="background:#fff"></span><span>Where a shoot will grow this turn (length = its share of energy)</span>
-      <span class="sw" style="background:#ff5a4a"></span><span>Pressing against stone, or what a cut would remove</span>
+      <span class="sw" style="background:#ffb14a"></span><span>Creeping along stone toward light</span>
+      <span class="sw" style="background:#ff5a4a"></span><span>Stuck against stone, or what a cut would remove</span>
       <span class="sw" style="background:#7dffb0"></span><span>Buds that will wake</span>
       <span class="dot" style="background:#9be37a"></span><span>Healthy shoot · <span style="color:#ffd166">fair</span> · <span style="color:#ffa24a">poor</span> · <span style="color:#ff5a4a">dying</span></span>
     </div>
