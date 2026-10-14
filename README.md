@@ -8,7 +8,7 @@ Status: pre-production. The design document is in progress; the pages under `stu
 
 - `index.html`: hub page
 - `docs/DESIGN.md`: design document (start here)
-- `grow/`: bonsai prototype v2, the current direction (`sim.js`: bonsai growth rules, cards and procedural ruins; every setting in `GCFG`)
+- `grow/`: bonsai prototype v2, the current direction (`sim.js`: bonsai growth rules, cards and procedural ruins; every setting in `GCFG`, species overrides in `SPECIES`: temple fig and juniper)
 - `play/`: rules prototype v0, kept for comparison (`sim.js` holds the rules and every tunable number in `CFG`)
 - `tests/`: `node tests/grow.test.mjs` (determinism, and how careless, random and careful players fare), `node tests/sim.test.mjs` (v0 rules)
 - `studies/3d/`: three.js study: enclosed ruin shaft, per-run culture blend, day/night cycle (current direction)

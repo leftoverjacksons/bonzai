@@ -125,7 +125,7 @@ Each species is a set of growth settings plus its own character. Build one, make
 | Species | Character | Status |
 |---|---|---|
 | **Temple fig (*Ficus religiosa*)** | Vigorous and fast, so poor care shows quickly; buds behind cuts, so pruning is productive; heart-shaped leaves with a long drip tip; fits the ruins (figs grip Angkor's Ta Prohm). Later: aerial roots. See §4.10a. | **First, in progress** |
-| Juniper | Slow, dense scale-foliage pads; branches that die stay as silvery deadwood (jin and shari), which can be a feature. | Later |
+| **Juniper (*Juniperus chinensis*)** | Slow, tough, stiff; bare wood never regrows, so a branch without foliage dies to silver deadwood. See §4.10b. | **Second, playable (2026-10-14)** |
 | Pine | Grows in yearly bursts ("candles") that must be pinched or it gets leggy; strong apical dominance. | Later |
 | Japanese maple | Paired (opposite) buds, so cuts split neatly in two; leaves change colour with the seasons. | Later |
 | Others (azalea, wisteria, olive, ...) | Flowering or fruiting variants with their own quirks. | Ideas |
@@ -146,6 +146,24 @@ What the real tree does, and how the game uses it. Sources were general referenc
 | Wounds bleed white latex; wire marks bark quickly. | Not used; a possible visual on cuts. |
 
 Consequence for other species: back-budding is the species setting with the largest effect on play. Pines and junipers barely bud from bare old wood, so with them every Cut is close to final.
+
+### 4.10b Juniper (added 2026-10-14)
+
+Chosen as the second species because it plays very differently from the fig: the fig forgives (cut hard, it regrows); the juniper does not.
+
+| Real trait | In the game |
+|---|---|
+| Foliage only near the branch tips, in light; bare inner wood rarely or never produces new buds. Growers keep green foliage on every branch they want to keep. | Buds wake only within the foliage (a living tip and the 3 nodes behind it). Cut and Rooting powder do nothing on bare wood. No regrowth after die-back. |
+| A branch with no foliage dies; the dead wood is resinous and lasts, and bonsai artists keep it as jin (dead branch) and shari (stripped trunk). | Living wood that no longer leads to foliage dies and stays as silver deadwood. The cut preview shows that stub in red too. |
+| Slow growing, very hardy, needs strong sun. | Growth about two thirds of the fig; smaller health losses from stone and hunger, larger from shade; slower healing. |
+| Stiff, flexible wood that takes wire well; dense, bushy growth. | Less sag, snaps later; more Wire cards; weaker apical dominance and more natural branching. |
+| Scale foliage in flat sprays; reddish, stringy bark; blue, berry-like cones. | Fern-like sprays, blue-green; reddish bark; single blue-grey berries. |
+
+Bot results over 150 turns, 12 seeds: careful 13.8 m (fig 21.5 m), 8 of 12 runs ended (fig 2); careless 10.0 m (fig 9.8 m). The careful bot was written for the fig and cuts deep, which the juniper punishes, so its numbers understate what good juniper play can do.
+
+### 4.10c Choosing a tree (decided 2026-10-14)
+
+A new tree starts with a choice of species (also on a first visit and after a run ends). Each species is a set of overrides on the base settings in `sim.js` (`SPECIES`), plus its own card texts and its own look in `main.js` (`LOOK`). The species is saved with the run.
 
 ### 4.4 Stalled tips
 
@@ -416,6 +434,7 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
 | 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
 | 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
+| 2026-10-14 | Second species: juniper; choose the species when planting a new tree | Pine (candle bursts), Japanese maple, wisteria (a vine) | Most different play from the fig: no regrowth from bare wood, so every cut is planned. |
 | 2026-10-14 | Rain falls through the ruins: from open sky onto the first stone, then dripping off edges level by level; clear line of sight to the tree | Uniform rain everywhere | Playtest: rain was hard to see through; asked for physically sensible rain. |
 | 2026-10-14 | Rain and mist, visual only | Weather that changes the rules | Atmosphere first; rules only with a good reason. |
 | 2026-10-14 | Undo last card, in the menu | No undo | Requested; cheap because a run is a seed plus a move list. |

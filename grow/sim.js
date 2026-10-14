@@ -4,7 +4,6 @@
 // Pure and deterministic: the same seed and the same moves always give the same tree.
 
 // Species: temple fig (Ficus). Vigorous, buds readily behind cuts. Other species will be other settings (docs/DESIGN.md §4.10).
-export const SPECIES = { fig: { name:'Temple fig', latin:'Ficus' } };
 
 export const GCFG = {
   SEG: 0.12,            // metres per growth segment
@@ -52,6 +51,35 @@ export const GCFG = {
   SUN_AZ0: 0.25,
 };
 const G = GCFG, TAU = Math.PI*2;
+GCFG.BARE_BUDS = true;   // buds on bare wood (behind the foliage) can wake
+GCFG.FOLIAGE_N = 3;      // nodes behind a living tip that carry foliage
+GCFG.JIN = false;        // a branch left with no foliage dies and stays as silver deadwood
+const BASE = {...GCFG};
+
+// Species: each is a set of overrides on the base settings (the base is the temple fig), plus its own card texts.
+export const SPECIES = {
+  fig: {name:'Temple fig', latin:'Ficus religiosa', blurb:'Fast and forgiving. Buds wake behind every cut, so prune hard and it regrows.', cfg:{}},
+  juniper: {name:'Juniper', latin:'Juniperus chinensis', blurb:'Slow, tough and stiff. Bare wood never regrows: a branch without foliage dies to silver deadwood. Plan every cut.',
+    cfg:{
+      BARE_BUDS:false, JIN:true, REBUD:0,
+      YIELD:0.2, MAX_EXT:0.2, APICAL:1.8, NATURAL_BREAK:0.12, NATURAL_RUN:0.4,
+      H_BLOCKED:-0.18, H_STARVE:-0.08, H_SHADE:-0.16, H_HEAL:0.06,
+      SAG:0.15, SNAP:2.6,
+      DECK:{cut:0.3, pinch:0.3, wire:0.28, root:0.12},
+    },
+    cards:{
+      cut:'Cut a branch anywhere. Everything beyond is removed. A bud wakes only if foliage remains just behind the cut; otherwise the stub dies to deadwood.',
+      root:'Wake a dormant bud within the foliage. Juniper buds on bare wood will not wake.',
+    }},
+};
+let current = 'fig';
+export function setSpecies(id){
+  if (!SPECIES[id]) id = 'fig';
+  for (const k of Object.keys(GCFG)) delete GCFG[k];
+  Object.assign(GCFG, BASE, SPECIES[id].cfg);
+  current = id;
+}
+export const cardText = (card, species=current) => SPECIES[species]?.cards?.[card] ?? CARDS[card].text;
 
 export function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 export function hashInt(...ns){ let h = 2166136261; for (const n of ns){ h ^= (n|0); h = Math.imul(h, 16777619); h ^= h>>>13; } return h>>>0; }
@@ -273,9 +301,10 @@ function plantBonsai(g){
   for (const n of g.nodes) n.born = -40;
 }
 
-export function newGame(seed){
+export function newGame(seed, species='fig'){
+  setSpecies(species);
   const g = {
-    seed, turn:0, blend:blendFromSeed(seed), modules:[], rings:[],
+    seed, species:current, turn:0, blend:blendFromSeed(seed), modules:[], rings:[],
     nodes:[], shoots:[], shootSeq:0, budPhase:0, maxY:0, peak:0,
     hand:[], drawR:mulberry32(hashInt(seed, 2)), log:[], events:[], over:false,
     healthSum:0, healthTurns:0, health:1, lastAdded:[],
@@ -288,8 +317,8 @@ export function newGame(seed){
   g.health = treeHealth(g);
   return g;
 }
-export function replayGame(seed, log){
-  const g = newGame(seed);
+export function replayGame(seed, log, species='fig'){
+  const g = newGame(seed, species);
   for (const a of log){ if (!play(g, a)) break; }
   return g;
 }
@@ -408,11 +437,22 @@ function removeSubtree(g, id){
   return cut.length;
 }
 // the best dormant bud on this node or the few just behind it (read-only, used for previews too)
-export function bestBud(g, from, maxBack, avoid=[]){
+// Nodes carrying foliage: each living tip and the few nodes behind it.
+export function foliageSet(g, skip=null){
+  const out = new Set();
+  for (const s of g.shoots){
+    if (skip && skip.has(s.node)) continue;
+    let id = s.node;
+    for (let k=0; k<=G.FOLIAGE_N && id >= 0; k++){ out.add(id); id = g.nodes[id].parent; }
+  }
+  return out;
+}
+// fol: where buds may wake when bare wood cannot (null: anywhere searched)
+export function bestBud(g, from, maxBack, avoid=[], fol=null){
   let id = from, best = null, bs = -1e9;
   for (let k=0; k<=maxBack && id >= 0; k++){
     const n = g.nodes[id];
-    if (n.bud && n.alive && !n.dead && !shootAt(g, id) && !avoid.includes(id)){
+    if (n.bud && n.alive && !n.dead && !shootAt(g, id) && !avoid.includes(id) && (!fol || fol.has(id))){
       const b = n.bud;
       if (!blockedAt(g, n.x + b[0]*G.SEG, n.y + b[1]*G.SEG, n.z + b[2]*G.SEG)){
         const sc = b[1] + n.y*0.05;
@@ -423,8 +463,20 @@ export function bestBud(g, from, maxBack, avoid=[]){
   }
   return best;
 }
-function wakeBud(g, from, maxBack, health){
-  const best = bestBud(g, from, maxBack);
+// Juniper: living wood that no longer leads to any foliage dies and stays as silver deadwood (jin). Returns how many nodes.
+function killBare(g){
+  if (!G.JIN) return 0;
+  const live = new Set(g.shoots.map(s => s.node)), has = new Uint8Array(g.nodes.length);
+  let n = 0;
+  for (let id = g.nodes.length - 1; id >= 0; id--){
+    const x = g.nodes[id]; if (!x.alive) continue;
+    has[id] = live.has(id) || x.children.some(c => has[c]) ? 1 : 0;
+    if (!has[id] && !x.dead){ x.dead = true; x.bud = null; n++; }
+  }
+  return n;
+}
+function wakeBud(g, from, maxBack, health, fol=null){
+  const best = bestBud(g, from, maxBack, [], fol);
   if (!best) return null;
   const s = addShoot(g, best.id, best.bud, health);
   best.bud = null;
@@ -441,8 +493,20 @@ export function previewAction(g, card, target){
   if (card === 'cut'){
     const removed = [], stack = [target];
     while (stack.length){ const k = stack.pop(); const n = g.nodes[k]; if (!n.alive) continue; removed.push(k); for (const c of n.children) stack.push(c); }
-    const bud = bestBud(g, g.nodes[target].parent, 3);
-    return {removed, buds: bud ? [bud] : []};
+    const gone = new Set(removed);
+    const bud = bestBud(g, g.nodes[target].parent, 3, [], G.BARE_BUDS ? null : foliageSet(g, gone));
+    // a juniper stub left with no foliage dies: show it with what is removed
+    const dies = [];
+    if (G.JIN && !bud){
+      const live = new Set(g.shoots.filter(s => !gone.has(s.node)).map(s => s.node));
+      const has = new Map();
+      for (let id = g.nodes.length - 1; id >= 0; id--){
+        const n = g.nodes[id]; if (!n.alive || gone.has(id)) continue;
+        has.set(id, live.has(id) || n.children.some(c => has.get(c)));
+      }
+      for (const [id, h] of has) if (!h && !g.nodes[id].dead) dies.push(id);
+    }
+    return {removed:[...removed, ...dies], buds: bud ? [bud] : [], dies};
   }
   return null;
 }
@@ -469,8 +533,8 @@ function drawHand(g){
 export function targets(g, card, step=0, first=null){
   if (card === 'pinch') return g.shoots.map(s => s.id);
   if (card === 'cut') return g.nodes.filter(n => n.alive && n.id > 2).map(n => n.id);
-  if (card === 'root') return g.nodes.filter(n => n.alive && !n.dead && n.bud && n.y > 0.15 && !shootAt(g, n.id)
-    && !blockedAt(g, n.x + n.bud[0]*G.SEG, n.y + n.bud[1]*G.SEG, n.z + n.bud[2]*G.SEG)).map(n => n.id);
+  if (card === 'root'){ const fol = G.BARE_BUDS ? null : foliageSet(g); return g.nodes.filter(n => n.alive && !n.dead && n.bud && n.y > 0.15 && !shootAt(g, n.id) && (!fol || fol.has(n.id))
+    && !blockedAt(g, n.x + n.bud[0]*G.SEG, n.y + n.bud[1]*G.SEG, n.z + n.bud[2]*G.SEG)).map(n => n.id); }
   if (card === 'wire'){
     if (step === 0) return g.shoots.filter(s => s.wire == null && targets(g, 'wire', 1, s.id).length).map(s => s.id);
     const s = shootById(g, first); if (!s) return [];
@@ -499,9 +563,10 @@ function apply(g, a){
     if (!targets(g, 'cut').includes(a.node)) return false;
     const parent = g.nodes[a.node].parent;
     const removed = removeSubtree(g, a.node);
-    const w = wakeBud(g, parent, 3, 0.8);
+    const w = wakeBud(g, parent, 3, 0.8, G.BARE_BUDS ? null : foliageSet(g));
     if (w) w.run = 0;
-    ev(g, 'cut', {removed, woke: w ? 1 : 0});
+    const jin = killBare(g);
+    ev(g, 'cut', {removed, woke: w ? 1 : 0, jin});
     return true;
   }
   if (card === 'root'){
@@ -611,6 +676,7 @@ function growTurn(g){
       if (R() < G.REBUD){ const w = wakeBud(g, id, 2, 0.55); if (w) ev(g, 'rebud'); }
     }
   }
+  if (killBare(g)) ev(g, 'jin');
   g.turn++;
   g.maxY = 0; for (const n of g.nodes) if (n.alive && !n.dead && n.y > g.maxY) g.maxY = n.y;
   updateRadii(g);

@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { GCFG, STYLES, CARDS, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, waterMap } from './sim.js';
+import { GCFG, STYLES, CARDS, SPECIES, cardText, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, waterMap } from './sim.js';
 
 const $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
@@ -102,6 +102,24 @@ const leafTex = canvasTex(64, 128, (g,w) => {
   g.beginPath(); g.moveTo(32,100); g.lineTo(32,14); g.stroke();
   g.lineWidth = 1;
   for (let y=40;y<96;y+=12){ const k = (y-40)/56; g.beginPath(); g.moveTo(32,y+8); g.quadraticCurveTo(32-14-8*k,y+2,32-20-10*k,y-6); g.moveTo(32,y+8); g.quadraticCurveTo(32+14+8*k,y+2,32+20+10*k,y-6); g.stroke(); }
+}, false);
+// juniper: a flat spray of scale foliage, branching like a fern, fanning out from a short stem
+const juniperTex = canvasTex(64, 128, (c) => {
+  const R = mulberry32(12);
+  const spray = (x, y, ang, len, w, depth) => {
+    const ex = x + Math.sin(ang)*len, ey = y - Math.cos(ang)*len;
+    for (let t=0; t<=1; t+=0.06){
+      const px = x + (ex - x)*t, py = y + (ey - y)*t, r = w*(1 - t*0.6);
+      c.fillStyle = t > 0.7 ? '#ffffff' : '#e8e8e8';
+      c.beginPath(); c.ellipse(px, py, r, r*1.4, ang, 0, TAU); c.fill();
+    }
+    if (depth > 0) for (let k=1;k<=4;k++){
+      const t = k/5, sx = x + (ex - x)*t, sy = y + (ey - y)*t, side = k % 2 ? 1 : -1;
+      spray(sx, sy, ang + side*(0.7 + R()*0.3), len*(0.5 - t*0.25), w*0.8, depth - 1);
+    }
+  };
+  c.strokeStyle = '#bdbdbd'; c.lineWidth = 3; c.beginPath(); c.moveTo(32, 128); c.lineTo(32, 104); c.stroke();
+  spray(32, 106, 0, 96, 4, 2);
 }, false);
 const groundTex = canvasTex(512, 512, (g,w,h) => {
   const R = mulberry32(31);
@@ -467,6 +485,19 @@ const STONE_TINT = [new THREE.Color(0xc2d8d0), new THREE.Color(0xe6c49c), new TH
 const GLOW = [new THREE.Color(0x52f2ff), new THREE.Color(0xffc24a), new THREE.Color(0x52ff9a)];
 // figs ripen from green to purple; they sit in pairs where leaves join the young shoots
 const FIG_GREEN = new THREE.Color(0x6f9a3a), FIG_RIPE = new THREE.Color(0x5a2348), LEAF_YOUNG = new THREE.Color(0xc0504e);
+// how each species is drawn: foliage texture and pads, leaf colour, new growth, fruit, bark tint
+const LOOK = {
+  fig:{tex:leafTex, pad:[16, 6], spread:[0.12, 0.09], size:1, hue:null, sat:0.55, light:0.17, young:LEAF_YOUNG, youngK:0.5,
+    fruit:{p:0.3, pair:true, from:FIG_GREEN, to:FIG_RIPE, size:1}, bark:new THREE.Color(1, 1, 1)},
+  juniper:{tex:juniperTex, pad:[30, 12], spread:[0.11, 0.08], size:0.75, hue:0.40, sat:0.34, light:0.2, young:new THREE.Color(0x8cc46a), youngK:0.3,
+    fruit:{p:0.22, pair:false, from:new THREE.Color(0x6f8a5a), to:new THREE.Color(0x5a6f9e), size:0.7}, bark:new THREE.Color(1.15, 0.82, 0.68)},
+};
+let look = LOOK.fig;
+function applyLook(){
+  look = LOOK[g.species] || LOOK.fig;
+  leafMat.map = look.tex; leafDepth.map = look.tex; leafMat.needsUpdate = leafDepth.needsUpdate = true;
+  barkMat.color.copy(look.bark);
+}
 const mixW = (arr, w) => { const c = new THREE.Color(0,0,0); arr.forEach((k,i) => c.add(k.clone().multiplyScalar(w[i]))); return c; };
 let world = {group:null, built:0, beams:[], glow:new THREE.Color(1,1,1), disposables:[]};
 
@@ -647,14 +678,14 @@ function buildLeaves(startOf){
   const d = new THREE.Object3D(), c = new THREE.Color();
   const pad = (n, count, spread, health, st) => {
     const R = mulberry32(hashInt(g.seed, n.id, 5));
-    const young = clamp(1 - (g.turn - n.born)/3, 0, 1);  // new fig leaves open coppery red and green over a few turns
+    const young = clamp(1 - (g.turn - n.born)/3, 0, 1);  // new fig leaves open coppery red, new juniper tips bright green
     for (let k=0;k<count;k++){
       d.position.set(n.x + (R()-.5)*spread*2, n.y + (R()-.25)*spread*1.1, n.z + (R()-.5)*spread*2);
       d.lookAt(d.position.clone().add(V((R()-.5)*2, 0.7 + R(), (R()-.5)*2)));
-      d.rotateZ(R()*TAU); d.scale.setScalar(0.8 + R()*0.5); d.updateMatrix();
+      d.rotateZ(R()*TAU); d.scale.setScalar((0.8 + R()*0.5)*look.size); d.updateMatrix();
       mats.push(d.matrix.clone()); starts.push(st);
-      c.setHSL(lerp(0.13, hue, health) + (R()-.5)*0.04, lerp(0.6, 0.55, health), clamp(0.17 + R()*0.1, 0, 0.5));
-      c.lerp(LEAF_YOUNG, young*0.5);
+      c.setHSL(lerp(0.13, look.hue ?? hue, health) + (R()-.5)*0.04, lerp(0.6, look.sat, health), clamp(look.light + R()*0.1, 0, 0.5));
+      c.lerp(look.young, young*look.youngK);
       cols.push(c.clone());
     }
   };
@@ -662,16 +693,16 @@ function buildLeaves(startOf){
     let n = N[s.node];
     if (!n.alive) continue;
     const st = startOf ? startOf(n.id) : -100;
-    pad(n, 16, 0.12, s.health, st);
-    for (let k=0;k<2 && n.parent > 0;k++){ n = N[n.parent]; pad(n, 6, 0.09, s.health, startOf ? startOf(n.id) : -100); }
-    // a pair of figs in the leaf axils just behind some tips
-    const fn = N[s.node].parent > 0 ? N[N[s.node].parent] : null;
-    if (fn && fn.alive && hash3(fn.id, 4, 2) < 0.3){
+    pad(n, look.pad[0], look.spread[0], s.health, st);
+    for (let k=0;k<2 && n.parent > 0;k++){ n = N[n.parent]; pad(n, look.pad[1], look.spread[1], s.health, startOf ? startOf(n.id) : -100); }
+    // fruit just behind some tips: a pair of figs in the leaf axils, or a single juniper berry (a fleshy cone)
+    const fn = N[s.node].parent > 0 ? N[N[s.node].parent] : null, fr = look.fruit;
+    if (fn && fn.alive && hash3(fn.id, 4, 2) < fr.p){
       const R = mulberry32(hashInt(g.seed, fn.id, 9));
       const ripe = clamp((g.turn - fn.born)/10, 0, 1);
-      for (let k=0;k<2;k++){
-        const a = R()*TAU, sc = 0.8 + R()*0.4;
-        blos.push([new THREE.Matrix4().compose(V(fn.x + Math.cos(a)*0.04, fn.y + 0.01, fn.z + Math.sin(a)*0.04), new THREE.Quaternion(), V(sc, sc*1.15, sc)), FIG_GREEN.clone().lerp(FIG_RIPE, ripe)]);
+      for (let k=0;k<(fr.pair ? 2 : 1);k++){
+        const a = R()*TAU, sc = (0.8 + R()*0.4)*fr.size;
+        blos.push([new THREE.Matrix4().compose(V(fn.x + Math.cos(a)*0.04, fn.y + 0.01, fn.z + Math.sin(a)*0.04), new THREE.Quaternion(), V(sc, sc*1.15, sc)), fr.from.clone().lerp(fr.to, ripe)]);
       }
     }
   }
@@ -951,11 +982,12 @@ window.addEventListener('keydown', e => {
 // ---------- run, saving, interface ----------
 const KEY = 'bonzai.grow.v3';
 let g, busy = false, sel = null, active = 0;
-function save(){ store.set(KEY, {seed:g.seed, log:g.log}); }
-function startRun(seed, log=[]){
+function save(){ store.set(KEY, {seed:g.seed, log:g.log, species:g.species}); }
+function startRun(seed, log=[], species='fig'){
   busy = true;
   const sameRuins = g && g.seed === seed && world.group;  // an undo keeps the ruins: they depend only on the seed
-  g = log.length ? replayGame(seed, log) : newGame(seed);
+  g = log.length ? replayGame(seed, log, species) : newGame(seed, species);
+  applyLook();
   sel = null; plan = null; active = 0;
   if (!sameRuins) resetWorld();
   syncWorld(); buildRings();
@@ -997,7 +1029,7 @@ function showTip(i){
   tipFor = tipFor === i ? -1 : i;
   const k = g.hand[i];
   $('tip').hidden = tipFor < 0;
-  if (tipFor >= 0){ $('tipname').textContent = CARDS[k].name; $('tiptext').textContent = CARDS[k].text; }
+  if (tipFor >= 0){ $('tipname').textContent = CARDS[k].name; $('tiptext').textContent = cardText(k, g.species); }
 }
 function renderUI(){
   if (active >= g.hand.length) active = 0;
@@ -1046,6 +1078,7 @@ function renderUI(){
   if (!$('menu').hidden) renderMenu();
 }
 function renderMenu(){
+  $('mnt').textContent = SPECIES[g.species].name;
   $('undobtn').disabled = !g.log.length;
   $('m-s').textContent = score(g);
   $('m-p').textContent = g.peak.toFixed(1) + ' m';
@@ -1067,23 +1100,35 @@ $('confirm').addEventListener('click', () => {
 });
 $('cancel').addEventListener('click', () => { sel = null; setMode('follow'); render(); });
 $('followbtn').addEventListener('click', () => setMode('follow'));
-$('newbtn').addEventListener('click', () => { $('confirmnew').hidden = !$('confirmnew').hidden; });
-$('newyes').addEventListener('click', () => { $('confirmnew').hidden = true; $('menu').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
-$('newno').addEventListener('click', () => { $('confirmnew').hidden = true; });
+$('newbtn').addEventListener('click', () => { $('menu').hidden = true; showPicker(true); });
+// choosing a tree: from the menu (the current tree is lost), after a run ends, and on a first visit
+function showPicker(warn){
+  const box = $('picklist'); box.textContent = '';
+  for (const [id, sp] of Object.entries(SPECIES)){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pick';
+    b.innerHTML = `<span class="pn">${sp.name}</span><span class="pl">${sp.latin}</span><span class="pb">${sp.blurb}</span>`;
+    b.addEventListener('click', () => { $('picker').hidden = true; $('menu').hidden = true; $('over').hidden = true; startRun(1 + Math.floor(Math.random()*999999), [], id); });
+    box.appendChild(b);
+  }
+  $('pickwarn').hidden = !warn; $('pickcancel').hidden = !warn;
+  $('picker').hidden = false;
+}
+$('pickcancel').addEventListener('click', () => { $('picker').hidden = true; });
 $('aboutbtn').addEventListener('click', () => { $('menu').hidden = true; $('about').hidden = false; });
-$('menubtn').addEventListener('click', () => { renderMenu(); $('confirmnew').hidden = true; $('menu').hidden = false; });
+$('menubtn').addEventListener('click', () => { renderMenu(); $('menu').hidden = false; });
 $('menuok').addEventListener('click', () => { $('menu').hidden = true; });
 $('menu').addEventListener('click', e => { if (e.target === $('menu')) $('menu').hidden = true; });
 $('about').addEventListener('click', e => { if (e.target === $('about')) $('about').hidden = true; });
 $('tip').addEventListener('click', () => { $('tip').hidden = true; tipFor = -1; });
 $('aboutok').addEventListener('click', () => { $('about').hidden = true; });
-$('o-new').addEventListener('click', () => { $('over').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
+$('o-new').addEventListener('click', () => { $('over').hidden = true; showPicker(false); });
 $('o-look').addEventListener('click', () => { $('over').hidden = true; });
 // undo: the run is its seed plus the list of moves, so dropping the last move and replaying restores the tree exactly
 function undo(){
   if (anim || busy || !g.log.length) return;
   $('menu').hidden = true;
-  startRun(g.seed, g.log.slice(0, -1));
+  startRun(g.seed, g.log.slice(0, -1), g.species);
   toast('Undone');
 }
 $('undobtn').addEventListener('click', undo);
@@ -1098,11 +1143,12 @@ function showOver(){
 
 // only events worth interrupting for; routine results show on the tree itself
 const MSG = {
-  dieback:'A shoot died back', snap:'A long shoot snapped off', tied:'A wired shoot is tied',
+  dieback:'A shoot died back', jin:'A bare branch died to deadwood', snap:'A long shoot snapped off', tied:'A wired shoot is tied',
   weak:'The tree is weak', last:'Last living shoot', over:'No living shoots left',
 };
 function eventToast(e){
   if (e.type === 'stratum') return toast(`Stratum ${e.k + 1}`);
+  if (e.type === 'cut' && e.jin) return toast('The bare stub died to deadwood');
   if (MSG[e.type]) toast(MSG[e.type]);
 }
 const recent = new Map();
@@ -1337,7 +1383,7 @@ function frame(){
 
 resize();
 const saved = store.get(KEY);
-try { startRun(saved?.seed ?? (1 + Math.floor(Math.random()*999999)), saved?.log ?? []); }
+try { startRun(saved?.seed ?? (1 + Math.floor(Math.random()*999999)), saved?.log ?? [], saved?.species ?? 'fig'); if (!saved) showPicker(false); }
 catch (e) { console.error(e); startRun(1 + Math.floor(Math.random()*999999)); }
 // console handle for testing: bonzai.g is the live game
 window.bonzai = { get g(){ return g; }, get meshes(){ return {woodMesh, deadMesh, leafMesh, markers, cutMesh}; }, turn: doTurn, get active(){ return active; }, set active(v){ active = v; render(); }, cam, get animating(){ return !!anim; }, setMode, onTap, get sel(){ return sel; }, set sel(v){ sel = v; render(); } };

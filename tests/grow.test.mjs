@@ -1,6 +1,6 @@
 // Run with: node tests/grow.test.mjs
-// Checks replay determinism, the hand rule, and how three simple players fare under the bonsai rules.
-import { newGame, play, replayGame, targets, canDiscard, shootById, planTurn, score, avgHealth, mulberry32 } from '../grow/sim.js';
+// Checks replay determinism, the hand rule, and how three simple players fare under the bonsai rules, for each species.
+import { SPECIES, newGame, play, replayGame, targets, canDiscard, shootById, planTurn, score, avgHealth, mulberry32 } from '../grow/sim.js';
 import assert from 'node:assert/strict';
 
 const pick = (a, R) => a[Math.floor(R()*a.length)];
@@ -66,22 +66,22 @@ function carefulMove(g, R){
 { const g = newGame(42); for (let k=0;k<60;k++){ assert.equal(new Set(g.hand).size > 1 || g.hand.length < 3, true); play(g, carefulMove(g, mulberry32(k))); if (g.over) break; } }
 
 const MAX = 150;
-for (const [name, bot] of [['careless', carelessMove], ['random', randomMove], ['careful', carefulMove]]){
+for (const sp of Object.keys(SPECIES)) for (const [name, bot] of [['careless', carelessMove], ['random', randomMove], ['careful', carefulMove]]){
   const rows = [];
   let worst = 0, slides = 0;
   for (let seed=1; seed<=12; seed++){
-    const g = newGame(seed), R = mulberry32(seed*31);
+    const g = newGame(seed, sp), R = mulberry32(seed*31);
     while (!g.over && g.turn < MAX){
       const t = performance.now();
       assert.ok(play(g, bot(g, R)), `${name}: move rejected (seed ${seed}, turn ${g.turn})`);
       slides += g.events.filter(e => e.type === 'slide').length;
       worst = Math.max(worst, performance.now() - t);
     }
-    const r = replayGame(seed, g.log);
+    const r = replayGame(seed, g.log, sp);
     assert.equal(r.nodes.length, g.nodes.length); assert.equal(r.peak, g.peak); assert.equal(r.over, g.over);
     rows.push({turns:g.turn, peak:g.peak, health:avgHealth(g), score:score(g), over:g.over});
   }
   const avg = k => (rows.reduce((a, r) => a + r[k], 0)/rows.length);
-  console.log(`${name.padEnd(8)} peak ${avg('peak').toFixed(2)} m · avg health ${(avg('health')*100).toFixed(0)}% · score ${avg('score').toFixed(0)} · turns ${avg('turns').toFixed(0)} · ended ${rows.filter(r => r.over).length}/12 · slides ${slides} · worst move ${worst.toFixed(0)} ms`);
+  console.log(`${sp.padEnd(8)} ${name.padEnd(8)} peak ${avg('peak').toFixed(2)} m · avg health ${(avg('health')*100).toFixed(0)}% · score ${avg('score').toFixed(0)} · turns ${avg('turns').toFixed(0)} · ended ${rows.filter(r => r.over).length}/12 · slides ${slides} · worst move ${worst.toFixed(0)} ms`);
 }
 console.log('ok');
