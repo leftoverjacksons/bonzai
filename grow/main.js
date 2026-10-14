@@ -774,7 +774,7 @@ function stepAnim(dt){
 const markers = new THREE.Group(); scene.add(markers);
 const sphereGeo = new THREE.SphereGeometry(1, 14, 10);
 const mk = c => new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:0.95, depthTest:false, toneMapped:false});
-const MAT = {good:mk(0x9be37a), ok:mk(0xffd166), poor:mk(0xffa24a), bad:mk(0xff5a4a), sel:mk(0xffffff), bud:mk(0x7dffb0)};
+const MAT = {good:mk(0x9be37a), ok:mk(0xffd166), poor:mk(0xffa24a), bad:mk(0xff5a4a), sel:mk(0xffffff), bud:mk(0x7dffb0), wire:mk(0xe0a060)};
 const lineMat = c => new THREE.LineBasicMaterial({color:c, transparent:true, opacity:0.85, depthTest:false});
 const LINES = {slide:lineMat(0xffb14a), grow:lineMat(0xffffff), block:lineMat(0xff5a4a), cut:lineMat(0xff5a4a), wire:lineMat(0xe0a060), bud:lineMat(0x7dffb0)};
 function dotAt(p, r, mat){ const m = new THREE.Mesh(sphereGeo, mat); m.position.copy(p); m.scale.setScalar(r); m.renderOrder = 30; markers.add(m); return m; }
@@ -783,6 +783,7 @@ function lineSeg(pairs, mat){
   const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat); l.renderOrder = 29; markers.add(l); return l;
 }
 const healthMat = h => h > 0.7 ? MAT.good : h > 0.45 ? MAT.ok : h > 0.2 ? MAT.poor : MAT.bad;
+const wireHalo = new THREE.MeshBasicMaterial({color:0xe0a060, transparent:true, opacity:0.55, depthTest:false});
 function refreshMarkers(){
   markers.traverse(o => { if (o.geometry && o.geometry !== sphereGeo) o.geometry.dispose(); });
   markers.clear();
@@ -804,7 +805,15 @@ function refreshMarkers(){
   for (const r of g.rings) if (r.mesh) r.mesh.material = ironMat;
   const card = g.hand[active];
   if (card === 'wire'){
+    // before a shoot is chosen, mark only the shoots that can reach a ring, and the rings they can reach
     const valid = sel?.shoot != null ? targets(g, 'wire', 1, sel.shoot) : [];
+    if (sel?.shoot == null){
+      for (const sid of targets(g, 'wire')){
+        const n = N[shootById(g, sid).node];
+        dotAt(P(n), 0.05, wireHalo);
+        for (const rid of targets(g, 'wire', 1, sid)) valid.push(rid);
+      }
+    }
     for (const id of valid) g.rings[id].mesh.material = ringLitMat;
     if (sel?.shoot != null){
       const s = shootById(g, sel.shoot), n = N[s.node];
@@ -974,6 +983,16 @@ const ICON = {
 const RAIN = '<svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2"><path d="M7 15a4 4 0 0 1 .5-8 5 5 0 0 1 9.5 1.5A3.3 3.3 0 0 1 17 15z"/><path d="M9 18l-1 3M13 18l-1 3M17 18l-1 3"/></svg>';
 const SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>', MOON = '<svg viewBox="0 0 24 24"><path d="M15 3a9 9 0 1 0 6 13A7 7 0 0 1 15 3z"/></svg>';
 let tipFor = -1;
+// if no shoot that can be wired is on screen, ride to the nearest one
+function showWireable(){
+  const ids = targets(g, 'wire');
+  if (!ids.length) return;
+  const rect = canvas.getBoundingClientRect(), nodes = ids.map(id => g.nodes[shootById(g, id).node]);
+  const onScreen = nodes.some(n => { const q = project(P(n)); return q && q.x > 0 && q.y > 0 && q.x < rect.width && q.y < rect.height*0.8; });
+  if (onScreen) return;
+  const near = nodes.sort((a, b) => cam.focus.distanceTo(P(a)) - cam.focus.distanceTo(P(b)))[0];
+  setMode('branch', near.id);
+}
 function showTip(i){
   tipFor = tipFor === i ? -1 : i;
   const k = g.hand[i];
@@ -992,7 +1011,11 @@ function renderUI(){
       b.type = 'button'; b.className = 'hcard'; b.style.setProperty('--stripe', CARD_COLOR[k]);
       b.setAttribute('aria-pressed', String(i === active));
       b.innerHTML = ICON[k] + `<span>${CARDS[k].name}</span>`;
-      b.addEventListener('click', () => { if (anim) return; if (active !== i){ active = i; sel = null; } $('tip').hidden = true; tipFor = -1; render(); });
+      b.addEventListener('click', () => {
+        if (anim) return;
+        if (active !== i){ active = i; sel = null; if (k === 'wire') showWireable(); }
+        $('tip').hidden = true; tipFor = -1; render();
+      });
       const q = document.createElement('button');
       q.type = 'button'; q.className = 'q'; q.textContent = '?'; q.setAttribute('aria-label', `What does ${CARDS[k].name} do?`);
       q.addEventListener('click', e => { e.stopPropagation(); showTip(i); });
@@ -1008,7 +1031,7 @@ function renderUI(){
   else if (card === 'pinch'){ ready = sel?.shoot != null; prompt = ready ? '' : 'Tap a shoot tip'; }
   else if (card === 'cut'){ ready = sel?.node != null; prompt = ready ? 'Swipe to move the cut' : 'Tap a branch'; }
   else if (card === 'root'){ ready = sel?.node != null; prompt = ready ? '' : 'Tap a green bud mark'; }
-  else if (card === 'wire'){ ready = sel?.ring != null; prompt = sel?.shoot == null ? 'Tap a shoot' : ready ? '' : 'Tap a glowing ring'; }
+  else if (card === 'wire'){ ready = sel?.ring != null; prompt = sel?.shoot == null ? 'Tap an orange shoot' : ready ? '' : 'Tap a glowing ring'; }
   $('prompt').textContent = anim ? '' : prompt;
   const go = $('confirm');
   go.textContent = discard ? 'Discard' : VERB[card];

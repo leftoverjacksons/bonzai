@@ -253,6 +253,7 @@ Earlier list (v0 ideas, kept for reference):
 
 - **Always visible:** height, a thin health bar, a sun or moon with the hour, and a menu button. Nothing else at the top.
 - **Hand:** three card tiles at the bottom, each an icon and a name. A **?** on each tile shows what the card does; the explanation is never on screen otherwise. Played cards leave empty slots, so the hand shows how many are left without words.
+- **Wire targets (2026-10-14, after playtest):** with Wire selected, only the shoots that can reach a ring get an orange halo (visible through stone), and the rings they can reach light up. If none of them is on screen when you pick Wire, the camera rides to the nearest one.
 - **While choosing a target:** one short hint ("Tap a shoot tip") and the confirm button, which appears only once a target is chosen, plus a ✕ to choose again.
 - **Menu:** score, best height, health, shoots, place and stratum, day and turn, the run's seed and culture blend, How to play, and New tree.
 - **Messages:** only events worth interrupting for, in a few words: a shoot died back or snapped, a wire tied, the tree is weak, the last living shoot, a new stratum. Routine results (what a pinch or cut did) are shown on the tree, not in text.
