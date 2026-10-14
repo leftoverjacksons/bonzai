@@ -49,9 +49,9 @@ Tone: the fantasy is played straight. It is obviously magical (a bonsai growing 
 
 ## 3. Core loop
 
-1. **The tree grows by itself.** **Decided (2026-10-13, revised).** Every turn the whole tree takes one growth flush: shoots extend toward the light available to them, and new branches form naturally where there is light and room (§4.7). The player watches a tree grow; it is not a vine the player steers.
-2. You hold a **hand of 3 action cards** (§5). **Decided.**
-3. You play one card. Cards are gardening interventions in a tree that grows on its own: mostly gentle (prune, water, light, wire, pinch), plus **one sharp tool** that directly redirects the leading shoot. **Decided.**
+1. **The tree grows by itself.** **Decided (2026-10-13, revised 2026-10-14).** Every turn the whole tree takes one growth flush (§4.9). Left alone, that growth causes problems: leggy shoots, crowded foliage that shades itself, starved lower branches, shoots that run into stone. The player's work keeps it healthy and climbing.
+2. **One forced card every turn**, drawn from a queue; the **next three cards are visible** (§5). **Decided (2026-10-14)**, replacing the earlier hand of 3.
+3. You must play the card; you choose only **where**. Cards are real bonsai work: **Cut, Pinch, Wire** (§5). There is **no direct redirect tool** and **no Lantern** (decided 2026-10-14). The game should feel like a **puzzle**.
 4. **The whole tree then grows, animated.** **Decided:** every turn shows the entire plant growing according to its conditions (light, space, obstacles). There is **no auto-run**: the player always advances turns by hand.
 5. The world clock advances (§8), the hand refills, and the camera follows the growth (§7).
 6. Repeat until the tree **stagnates** (§4.6).
@@ -93,6 +93,32 @@ Each tip has **vigor**, a growth budget. One step of growth uses vigor. Vigor co
 
 **Pacing:** **Open.** The first goal is how growth looks; the speed of growth is tuned later.
 
+### 4.9 Growth model v2: bonsai rules (decided 2026-10-14; supersedes the free growth of §4.7)
+
+Feedback on v1: the tree was dense and aggressive and could grow its way around anything, so the game played itself. v2 makes unmanaged growth the problem and real bonsai work the solution.
+
+- **Start as an established bonsai.** Every run begins with a mature small tree: thick, flared, aged trunk about 1 m tall, three or four main branches, foliage pads at their ends. The magic is that it keeps climbing.
+- **Growth only from buds.** Shoots extend from their tips. Every new segment carries a dormant bud pointing off to one side (alternate, spiral arrangement). Old wood does not sprout on its own; dormant buds wake when the player pinches or cuts nearby, and occasionally on their own along a strong shoot.
+- **Energy from lit foliage.** Each shoot's foliage pad produces energy according to how much sky it sees and how crowded it is by pads just above it (self-shading). Energy pays for extension.
+- **Apical dominance.** The highest shoots get the largest share of energy. Unmanaged, the top runs long and the lower branches starve.
+- **Shoots keep their heading.** They bend gently upward and toward light but do not route around stone. A shoot that meets stone stops and weakens; the player must cut back, pinch, or wire.
+- **Health per shoot.** Shoots lose health when blocked by stone, shaded, starved, or leggy; they recover when fed and lit. At zero health a shoot dies back: its last segments become dead wood (silver-grey) and its foliage drops.
+- **Legginess, sagging and snapping.** A long run of shoot with no side branches sags downward; a very long one snaps off. Wiring to a ring prevents both.
+- **Night.** Foliage produces almost no energy at night, so growth nearly stops; damage from stone and sagging still applies.
+- **Neglect hurts a fair amount** (decided): a few poor turns lose shoots and foliage, and a badly kept tree can collapse. Recoverable with good cuts, but not free.
+
+### 4.10 Species (decided 2026-10-14: one at a time)
+
+Each species is a set of growth settings plus its own character. Build one, make it fun, then add others.
+
+| Species | Character | Status |
+|---|---|---|
+| **Temple fig (Ficus)** | Vigorous and fast, so poor care shows quickly; buds readily behind cuts, so pruning is productive; glossy leaves; fits the ruins (strangler figs grip Angkor's Ta Prohm). Later: aerial roots. | **First, in progress** |
+| Juniper | Slow, dense scale-foliage pads; branches that die stay as silvery deadwood (jin and shari), which can be a feature. | Later |
+| Pine | Grows in yearly bursts ("candles") that must be pinched or it gets leggy; strong apical dominance. | Later |
+| Japanese maple | Paired (opposite) buds, so cuts split neatly in two; leaves change colour with the seasons. | Later |
+| Others (azalea, wisteria, olive, ...) | Flowering or fruiting variants with their own quirks. | Ideas |
+
 ### 4.4 Stalled tips
 
 A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does not grow, so it is a cost the player must remove by pruning, re-budding around it, or wiring it in a new direction. **Decided** (from the original idea that branches "get stuck, so you re-branch").
@@ -115,9 +141,19 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 
 ## 5. Actions (cards)
 
-**Decided:** actions arrive as random cards, a hand of 3 at a time. Some are helpful, and some are **forced** awkward pieces (like Tetris's S and Z) that must be played somewhere.
+**Decided (2026-10-14), current rules:** one forced card per turn from a queue; the next three are visible. You must play it; you choose where. Real bonsai work only:
 
-Initial list. Names and numbers are working values.
+| Card | Target | Effect |
+|---|---|---|
+| **Pinch** | a shoot tip | Stops that shoot. Up to two dormant buds just behind it wake as short new shoots, so the foliage pad gets denser and more compact, and energy goes elsewhere. |
+| **Cut** | any point on a branch | Removes everything beyond that point. The nearest dormant bud just behind the cut wakes and grows in its own direction. Lost foliage means less energy, but the remaining shoots get a larger share. |
+| **Wire** | a shoot tip, then an iron ring within reach | The shoot grows toward the ring and does not sag; once it arrives it is tied and continues upward. |
+
+- Deck mix (working values): Cut and Pinch most of the time, Wire occasionally. If a card has no valid target it may be passed.
+- **Removed:** Lantern (decided 2026-10-14), any direct redirect tool (decided 2026-10-14).
+- Water, Rooting powder and the forced/negative cards below remain ideas for later.
+
+Earlier list (v0 ideas, kept for reference):
 
 ### Helpful
 
@@ -162,7 +198,7 @@ Initial list. Names and numbers are working values.
 | Element | Role | Status |
 |---|---|---|
 | Walls, beams, overhangs, collapsed floors | Obstacles; tips that hit them stall. | Decided |
-| Anchors (rings, statue hands, chains, carved knobs) | Tether points. | Decided |
+| Anchors (rings, statue hands, chains, carved knobs) | Tether points. **Decided (2026-10-14): rings are attached to the ruins in sensible places**: on the inner faces of walls, around columns, and hanging from beams and the undersides of slabs. | Decided |
 | Light openings (windows, cracks, broken roofs) | Light sources; tips bend toward them and gain vigor. | Proposal |
 | Light that moves with the time of day | Shafts of sunlight sweep across the shaft as hours pass, so where light falls depends on the turn. | Proposal |
 | Ruin features that close off routes as you climb | Main source of rising difficulty (§9). | Proposal |
@@ -203,7 +239,7 @@ Initial list. Names and numbers are working values.
 - **Decided:** the visual theme does **not** change between strata within a run (§10.3).
 - **Decided:** reaching certain height thresholds **unlocks new powers** (cards, the hold slot, other upgrades) for future runs.
 - **Decided:** trees that pass a height threshold are saved to a **gallery** where they stand side by side and can be visited.
-- **Proposal:** score is height reached, with possibly a form or beauty bonus later.
+- **Decided (2026-10-14):** score combines **height and health**. Working formula: peak height (cm) × average tree health over the run, so a well-kept tree scores more than a leggy one that limped upward.
 - **Open:** run length is open-ended by design; target a typical first run of about 10 minutes and skilled runs much longer.
 
 ---
@@ -272,6 +308,7 @@ Initial list. Names and numbers are working values.
 | M1 | Rendering slice | Organic trunk, enclosed labyrinth with limited light, readable night, culture blend per run. Done as `studies/3d`. |
 | M2 | Rules prototype v0 | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. Done as `play/` (§18). Feedback: felt like guiding vines; growth should be natural. |
 | M2b | Growth prototype v1 | Self-growing tree (space colonization toward light), animated growth each turn, alternating ruin modules, auto-follow camera with branch travel. **In progress** as `grow/`. Cards are re-added after the growth looks right. |
+| M2c | Bonsai prototype v2 | Established starting tree, bud-based growth with apical dominance and self-shading, health and die-back, forced card queue (Cut, Pinch, Wire), rings on the ruins, height and health score. **In progress** in `grow/`. Species: temple fig. |
 | M3 | Playable run | Cards in hand, labyrinth chunks, camera follow, strata and difficulty, day/night by turn, save and resume. |
 | M4 | Meta progression | Unlocks, gallery, hold slot. |
 | M5 | Polish and share | Audio, performance tiers, tutorial, sharing a tree by code, GitHub Pages release for friends. |
@@ -303,6 +340,14 @@ Initial list. Names and numbers are working values.
 | 2026-10-13 | Ruin structure C: alternating open terraces and enclosed chambers | Stacked chambers only (A); open temple mountain (B); single silo | Rhythm of dark and light; fixes the darkness complaint. |
 | 2026-10-13 | Animated growth of the whole plant every turn; no auto-run | Auto-play several turns | The player wants to watch growth, in control of time. |
 | 2026-10-13 | Camera follows growth; tap a branch and swipe to travel along it | Free camera only | Lets the player explore the tree as it gets tall. |
+| 2026-10-14 | Bonsai growth rules (§4.9): buds, apical dominance, self-shading, health, die-back; shoots no longer route around stone | Free space-colonization growth (v1) | v1 was dense and aggressive and played itself. |
+| 2026-10-14 | One forced card per turn, next three visible | Hand of 3 | Puzzle feel, closer to Tetris. |
+| 2026-10-14 | Cards are Cut, Pinch, Wire; no Lantern; no direct redirect tool | Gentle cards plus a sharp redirect tool | Mimic real bonsai work. |
+| 2026-10-14 | Start every run with an established bonsai | Seedling | Thick lower trunk from the start; real bonsai are rarely started from seed. |
+| 2026-10-14 | Rings attached to ruins in sensible places | Rings floating near walls | Believable wiring. |
+| 2026-10-14 | Score = height and health | Height only | Rewards good care, not just climbing. |
+| 2026-10-14 | Neglect hurts a fair amount | Gentle, forgiving | It should feel like a puzzle. |
+| 2026-10-14 | One species at a time, temple fig first | Several at once | Make one fun before adding others. |
 
 ---
 
