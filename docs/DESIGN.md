@@ -128,6 +128,7 @@ Each species is a set of growth settings plus its own character. Build one, make
 | **Juniper (*Juniperus chinensis*)** | Slow, tough, stiff; bare wood never regrows, so a branch without foliage dies to silver deadwood. See §4.10b. | **Second, playable (2026-10-14)** |
 | Pine | Grows in yearly bursts ("candles") that must be pinched or it gets leggy; strong apical dominance. | Later |
 | Japanese maple | Paired (opposite) buds, so cuts split neatly in two; leaves change colour with the seasons. | Later |
+| Banyan-type fig (*Ficus microcarpa* or *F. benghalensis*) | Its signature: **root anchoring**. Aerial roots drop from branches, grip the stone they touch (faster in humid, rainy weather) and thicken into pillars that hold the branch up, like a free, permanent wire. The temple fig and juniper do not do this (decided 2026-10-14: anchoring belongs to this later species). | Later |
 | Others (azalea, wisteria, olive, ...) | Flowering or fruiting variants with their own quirks. | Ideas |
 
 ### 4.10a Temple fig notes (researched 2026-10-14)
@@ -436,6 +437,7 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
 | 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
 | 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
+| 2026-10-14 | Root anchoring saved for a later banyan-type fig | Add it to the temple fig now (rare and slow) | The temple fig makes few aerial roots; anchoring is a strong signature for a new species. |
 | 2026-10-14 | Wire is a guy wire: tie point on a branch, branch bends toward the ring over turns, wire comes off when set | Tip grows to the ring and climbs (old); coil wiring; manual removal with bite scars | Closer to real bonsai and away from the vine feel; automatic removal keeps it simple for now. |
 | 2026-10-14 | Second species: juniper; choose the species when planting a new tree | Pine (candle bursts), Japanese maple, wisteria (a vine) | Most different play from the fig: no regrowth from bare wood, so every cut is planned. |
 | 2026-10-14 | Rain falls through the ruins: from open sky onto the first stone, then dripping off edges level by level; clear line of sight to the tree | Uniform rain everywhere | Playtest: rain was hard to see through; asked for physically sensible rain. |
