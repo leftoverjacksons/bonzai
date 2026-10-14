@@ -249,6 +249,15 @@ Earlier list (v0 ideas, kept for reference):
 - **Decided (2026-10-14) after playtest:** the cut-away removes **whole stone blocks**, not holes in surfaces. Surface holes made the thin walls look hollow and disorienting; removing whole blocks always shows solid stone and leaves an edge like a crumbled wall.
 - **Proposal:** drag to orbit, pinch to zoom, tap a card then tap a target. A small side silhouette or map shows the whole tree and where you are.
 
+### 7.1 Screen layout (decided 2026-10-14: as few words as possible)
+
+- **Always visible:** height, a thin health bar, a sun or moon with the hour, and a menu button. Nothing else at the top.
+- **Hand:** three card tiles at the bottom, each an icon and a name. A **?** on each tile shows what the card does; the explanation is never on screen otherwise. Played cards leave empty slots, so the hand shows how many are left without words.
+- **While choosing a target:** one short hint ("Tap a shoot tip") and the confirm button, which appears only once a target is chosen, plus a ✕ to choose again.
+- **Menu:** score, best height, health, shoots, place and stratum, day and turn, the run's seed and culture blend, How to play, and New tree.
+- **Messages:** only events worth interrupting for, in a few words: a shoot died back or snapped, a wire tied, the tree is weak, the last living shoot, a new stratum. Routine results (what a pinch or cut did) are shown on the tree, not in text.
+- The camera mode label is gone; an arrow button appears when the camera is not following the growth.
+
 ---
 
 ## 8. Day and night
@@ -389,6 +398,8 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Stable tree geometry, grown-in joints, constant bark scale, visible cut ends | Rebuild everything each turn | Playtest: tree looked disconnected and shape-shifting. |
 | 2026-10-14 | Cut-away removes whole blocks | Dithered holes in surfaces | Playtest: hollow surfaces were disorienting. |
 | 2026-10-14 | Fig details from research: heart-shaped leaves with drip tips, coppery new leaves, paired figs instead of blossoms (§4.10a) | Generic leaves and glowing blossoms | Figs have no visible flowers; make the first species true to life. |
+| 2026-10-14 | Runs stay open-ended for now | Turn limit; health falling with height; drought events | Not yet clear what should end a skilled run; decide after more play. |
+| 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
 | 2026-10-14 | Strata v1: 8 m bands; ruins close in and shoots grow 15% slower per band (working values) | Rule changes per band; new obstacle types | Smallest change that makes height harder; grounded in the hydraulic limit on tree height. |
 
 ---
@@ -397,7 +408,7 @@ Earlier list (v0 ideas, kept for reference):
 
 1. Height interval *X* between strata, and what each stratum adds. To be decided by playing the prototype (currently 8 m; strata v1 in §9).
    - Careful bot over 300 turns, 12 seeds (2026-10-14): turns to climb each 8 m band went from about 45, 45, 55, 70 without strata v1 to about 45, 60, 70, 90 with it; median peak 24.6 m (was 29 m).
-   - **Open, important:** a careful player still never loses (0 of 12 runs ended in 300 turns, average health about 50%). Strata now slow the climb but do not end a run. What should end a skilled run: a turn or day limit, health falling with height, a stratum event such as drought, or simply that score growth flattens?
+   - **Decided for now (2026-10-14): let it keep going.** Runs stay open-ended; revisit after more play. Background: a careful player still never loses (0 of 12 runs ended in 300 turns, average health about 50%). Strata now slow the climb but do not end a run. What should end a skilled run: a turn or day limit, health falling with height, a stratum event such as drought, or simply that score growth flattens?
 1b. Pacing of growth (how much the tree grows per turn) and how cards map onto the new growth model.
 2. Resolved: day and night change the rules (§8). Still open: night hazards.
 3. One rescue per run before stagnation?

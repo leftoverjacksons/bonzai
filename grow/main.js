@@ -681,7 +681,7 @@ function doTurn(action){
   if (anim || busy || g.over) return;
   const before = g.nodes.length;
   const ok = play(g, action);
-  if (!ok){ toast("That can't be done there."); return; }
+  if (!ok){ toast('Not there'); return; }
   sel = null; active = 0;
   save();
   syncWorld();
@@ -813,7 +813,6 @@ function travel(steps){
 }
 function setMode(mode, node=-1){
   cam.mode = mode; cam.node = node;
-  $('modechip').textContent = mode === 'follow' ? 'Following the growth' : mode === 'branch' ? 'On a branch · swipe up or down to travel' : 'Looking around';
   $('followbtn').hidden = mode === 'follow';
 }
 function project(p){
@@ -910,8 +909,6 @@ function startRun(seed, log=[]){
   hours = hoursTo = GCFG.START_HOUR + g.turn*24/GCFG.TURNS_PER_DAY;
   cam.focus.set(g.follow.x*0.6, g.follow.y, g.follow.z*0.6);
   setMode('follow');
-  $('runname').textContent = `Temple fig · tree ${seed}`;
-  $('blend').textContent = STYLES.map((s,i) => [s, Math.round(g.blend[i]*100)]).sort((a,b) => b[1]-a[1]).map(([s,p]) => `${s} ${p}`).join(' · ');
   $('over').hidden = true;
   save();
   busy = false;
@@ -922,46 +919,73 @@ function render(){ refreshMarkers(); renderUI(); }
 
 const CARD_COLOR = {pinch:'#7dffb0', cut:'#ff7a5a', wire:'#e0a060', root:'#c9a2ff'};
 const VERB = {pinch:'Pinch', cut:'Cut here', wire:'Wire', root:'Wake bud'};
+const ICON = {
+  cut:'<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>',
+  pinch:'<svg viewBox="0 0 24 24"><path d="M12 21V8"/><path d="M12 15c-3.5 0-5.5-2-5.5-5 3.5 0 5.5 2 5.5 5zM12 12c3.5 0 5.5-2 5.5-5-3.5 0-5.5 2-5.5 5z"/><path d="M9 4.5h6"/></svg>',
+  wire:'<svg viewBox="0 0 24 24"><circle cx="17" cy="7" r="3.5"/><path d="M3 20c2.5-1 2-4 4.5-4.5S10 18 12.5 16s1-5 3.5-6"/></svg>',
+  root:'<svg viewBox="0 0 24 24"><path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"/><path d="M12 11v6M9 14h6"/></svg>',
+};
+const SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>', MOON = '<svg viewBox="0 0 24 24"><path d="M15 3a9 9 0 1 0 6 13A7 7 0 0 1 15 3z"/></svg>';
+let tipFor = -1;
+function showTip(i){
+  tipFor = tipFor === i ? -1 : i;
+  const k = g.hand[i];
+  $('tip').hidden = tipFor < 0;
+  if (tipFor >= 0){ $('tipname').textContent = CARDS[k].name; $('tiptext').textContent = CARDS[k].text; }
+}
 function renderUI(){
   if (active >= g.hand.length) active = 0;
-  const card = g.hand[active], c = CARDS[card];
+  const card = g.hand[active];
   const hand = $('hand'); hand.textContent = '';
-  g.hand.forEach((k, i) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'hcard'; b.style.setProperty('--stripe', CARD_COLOR[k]);
-    b.setAttribute('aria-pressed', String(i === active));
-    b.textContent = CARDS[k].name;
-    b.addEventListener('click', () => { if (anim) return; active = i; sel = null; render(); });
-    hand.appendChild(b);
-  });
-  $('handinfo').textContent = `${g.hand.length} card${g.hand.length === 1 ? '' : 's'} left in this hand · play them all, in any order`;
-  $('cardname').textContent = c.name;
-  $('cardtext').textContent = c.text;
-  $('current').style.setProperty('--stripe', CARD_COLOR[card]);
+  for (let i=0;i<GCFG.HAND;i++){
+    const slot = document.createElement('div'), k = g.hand[i];
+    slot.className = 'slot' + (k ? '' : ' empty');
+    if (k){
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'hcard'; b.style.setProperty('--stripe', CARD_COLOR[k]);
+      b.setAttribute('aria-pressed', String(i === active));
+      b.innerHTML = ICON[k] + `<span>${CARDS[k].name}</span>`;
+      b.addEventListener('click', () => { if (anim) return; if (active !== i){ active = i; sel = null; } $('tip').hidden = true; tipFor = -1; render(); });
+      const q = document.createElement('button');
+      q.type = 'button'; q.className = 'q'; q.textContent = '?'; q.setAttribute('aria-label', `What does ${CARDS[k].name} do?`);
+      q.addEventListener('click', e => { e.stopPropagation(); showTip(i); });
+      slot.append(b, q);
+    }
+    hand.appendChild(slot);
+  }
+  if (tipFor >= g.hand.length){ tipFor = -1; $('tip').hidden = true; }
+  // a very short hint; the card's own text sits behind its ?
   let prompt = '', ready = false;
   const discard = canDiscard(g, active);
-  if (discard) prompt = card === 'wire' ? 'No ring within reach of any shoot. Discard this card.' : 'Nothing to use this on. Discard this card.';
-  else if (card === 'pinch'){ prompt = sel?.shoot != null ? 'Green: buds that will wake.' : 'Tap a shoot tip to pinch.'; ready = sel?.shoot != null; }
-  else if (card === 'cut'){ prompt = sel?.node != null ? 'Red: what will be removed. Green: the bud that wakes. Swipe along the branch to move the cut.' : 'Tap a branch where you want to cut.'; ready = sel?.node != null; }
-  else if (card === 'root'){ prompt = sel?.node != null ? 'This bud will wake and grow the way it points.' : 'Tap a dormant bud (small green marks) on old wood. Look around the tree to find more.'; ready = sel?.node != null; }
-  else if (card === 'wire'){ prompt = sel?.shoot == null ? 'Tap a shoot to wire.' : sel.ring == null ? 'Tap a glowing ring to tie it to.' : 'Ready to wire.'; ready = sel?.ring != null; }
-  $('prompt').textContent = prompt;
+  if (discard) prompt = 'Nothing to use it on';
+  else if (card === 'pinch'){ ready = sel?.shoot != null; prompt = ready ? '' : 'Tap a shoot tip'; }
+  else if (card === 'cut'){ ready = sel?.node != null; prompt = ready ? 'Swipe to move the cut' : 'Tap a branch'; }
+  else if (card === 'root'){ ready = sel?.node != null; prompt = ready ? '' : 'Tap a green bud mark'; }
+  else if (card === 'wire'){ ready = sel?.ring != null; prompt = sel?.shoot == null ? 'Tap a shoot' : ready ? '' : 'Tap a glowing ring'; }
+  $('prompt').textContent = anim ? '' : prompt;
   const go = $('confirm');
   go.textContent = discard ? 'Discard' : VERB[card];
-  go.disabled = !(ready || discard) || !!anim;
-  $('cancel').hidden = !sel;
+  go.hidden = !(ready || discard) || !!anim;
+  $('cancel').hidden = !sel || !!anim;
   $('h').textContent = g.maxY.toFixed(2) + ' m';
   const hp = Math.round(g.health*100);
-  $('hp').textContent = `Health ${hp}%`;
   $('hpbar').style.width = hp + '%';
   $('hpbar').style.background = hp > 65 ? '#9be37a' : hp > 40 ? '#ffd166' : '#ff6a55';
-  $('score').textContent = `Score ${score(g)} · best height ${g.peak.toFixed(2)} m`;
-  const stuck = plan ? plan.info.filter(i => i.blockedAhead && !i.slide).length : 0, sliding = plan ? plan.info.filter(i => i.blockedAhead && i.slide).length : 0;
-  $('stats').textContent = `${g.shoots.length} shoots` + (sliding ? ` · ${sliding} creeping along stone` : '') + (stuck ? ` · ${stuck} stuck` : '');
   const hr = hourOf(g.turn);
-  $('clock').textContent = `Day ${dayOf(g.turn)} · ${String(Math.floor(hr)).padStart(2,'0')}:00 · ${isDay(g.turn) ? 'Day' : 'Night'} · turn ${g.turn + 1}`;
+  $('clock').innerHTML = (isDay(g.turn) ? SUN : MOON) + `<span>${String(Math.floor(hr)).padStart(2,'0')}:00</span>`;
+  if (!$('menu').hidden) renderMenu();
+}
+function renderMenu(){
+  $('m-s').textContent = score(g);
+  $('m-p').textContent = g.peak.toFixed(1) + ' m';
+  $('m-hp').textContent = Math.round(g.health*100) + '%';
+  $('m-n').textContent = g.shoots.length;
+  const stuck = plan ? plan.info.filter(i => i.blockedAhead && !i.slide).length : 0, sliding = plan ? plan.info.filter(i => i.blockedAhead && i.slide).length : 0;
   const m = g.modules.find(m => g.follow.y >= m.y0 && g.follow.y < m.y1);
-  $('place').textContent = m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]} · stratum ${m.k + 1}` : '';
+  $('m-place').textContent = (m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]} · stratum ${m.k + 1}` : '')
+    + (sliding ? ` · ${sliding} creeping along stone` : '') + (stuck ? ` · ${stuck} stuck` : '');
+  $('m-time').textContent = `Day ${dayOf(g.turn)}, ${String(Math.floor(hourOf(g.turn))).padStart(2,'0')}:00 · turn ${g.turn + 1}`;
+  $('m-run').textContent = `Tree ${g.seed} · ` + STYLES.map((s,i) => [s, Math.round(g.blend[i]*100)]).sort((a,b) => b[1]-a[1]).map(([s,p]) => `${s} ${p}%`).join(' · ');
 }
 $('confirm').addEventListener('click', () => {
   const card = g.hand[active], i = active;
@@ -973,9 +997,14 @@ $('confirm').addEventListener('click', () => {
 $('cancel').addEventListener('click', () => { sel = null; setMode('follow'); render(); });
 $('followbtn').addEventListener('click', () => setMode('follow'));
 $('newbtn').addEventListener('click', () => { $('confirmnew').hidden = !$('confirmnew').hidden; });
-$('newyes').addEventListener('click', () => { $('confirmnew').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
+$('newyes').addEventListener('click', () => { $('confirmnew').hidden = true; $('menu').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
 $('newno').addEventListener('click', () => { $('confirmnew').hidden = true; });
-$('aboutbtn').addEventListener('click', () => { $('about').hidden = false; });
+$('aboutbtn').addEventListener('click', () => { $('menu').hidden = true; $('about').hidden = false; });
+$('menubtn').addEventListener('click', () => { renderMenu(); $('confirmnew').hidden = true; $('menu').hidden = false; });
+$('menuok').addEventListener('click', () => { $('menu').hidden = true; });
+$('menu').addEventListener('click', e => { if (e.target === $('menu')) $('menu').hidden = true; });
+$('about').addEventListener('click', e => { if (e.target === $('about')) $('about').hidden = true; });
+$('tip').addEventListener('click', () => { $('tip').hidden = true; tipFor = -1; });
 $('aboutok').addEventListener('click', () => { $('about').hidden = true; });
 $('o-new').addEventListener('click', () => { $('over').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
 $('o-look').addEventListener('click', () => { $('over').hidden = true; });
@@ -987,17 +1016,13 @@ function showOver(){
   $('over').hidden = false;
 }
 
+// only events worth interrupting for; routine results show on the tree itself
 const MSG = {
-  blocked:'A shoot is pressing against stone and weakening.', dieback:'A shoot died back to dead wood.', rebud:'The fig woke a bud just behind it.',
-  snap:'A long unbranched shoot snapped off.', slide:'A shoot met stone and is creeping along it toward light.', tied:'A wired shoot reached its ring and is tied.', branch:'A strong shoot branched on its own.',
-  weak:'The tree is weak. Too many shoots are hungry, shaded or stuck.', over:'The tree has no living shoots left.',
+  dieback:'A shoot died back', snap:'A long shoot snapped off', tied:'A wired shoot is tied',
+  weak:'The tree is weak', last:'Last living shoot', over:'No living shoots left',
 };
 function eventToast(e){
-  if (e.type === 'pinch') return toast(e.woke ? `Pinched. ${e.woke} bud${e.woke>1?'s':''} woke behind it.` : 'Pinched. No buds were left to wake there.');
-  if (e.type === 'cut') return toast(`Cut away ${e.removed} segment${e.removed===1?'':'s'}.` + (e.woke ? ' A bud woke behind the cut.' : ' No bud left to wake there.'));
-  if (e.type === 'wire') return toast('Wired. The shoot will grow toward the ring.');
-  if (e.type === 'root') return toast('A dormant bud woke.');
-  if (e.type === 'stratum') return toast(`Stratum ${e.k + 1}. Above here the openings are smaller and rings fewer.`);
+  if (e.type === 'stratum') return toast(`Stratum ${e.k + 1}`);
   if (MSG[e.type]) toast(MSG[e.type]);
 }
 const recent = new Map();

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-/* Layout: full-screen scene; HUD on top (height, health, score, clock); the forced card and the next three at the bottom. */
+/* Layout: full-screen scene; height, health and clock on top, everything else in the menu; the hand of three at the bottom, each card explained behind its ? */
 :root{
   color-scheme: dark;
   --bg:#0c1214; --fg:#f1e9d8; --fg-2:#cfc6b3;
@@ -24,39 +24,35 @@ body{font-family:var(--body);font-size:15px;user-select:none;-webkit-user-select
 .hud > *{pointer-events:auto}
 .top{top:0;padding-top:calc(env(safe-area-inset-top,0px) + 10px);justify-content:space-between;align-items:flex-start}
 .left{display:flex;flex-direction:column;gap:3px;text-shadow:0 1px 8px rgba(0,0,0,.7);min-width:0}
-.h{font-family:var(--display);font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
-.sub{font-size:.74rem;color:var(--fg-2);letter-spacing:.02em;font-variant-numeric:tabular-nums}
-.hp{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:.78rem;font-weight:700;font-variant-numeric:tabular-nums}
-.bar{width:96px;height:7px;border-radius:999px;background:rgba(241,233,216,.18);overflow:hidden}
+.h{font-family:var(--display);font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums}
+.bar{width:84px;height:5px;border-radius:999px;background:rgba(241,233,216,.18);overflow:hidden}
 .bar i{display:block;height:100%;border-radius:999px;transition:width .5s,background .5s}
-.right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.pill{font-variant-numeric:tabular-nums;font-size:.76rem;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 11px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap}
-.small{font:inherit;font-size:.76rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.right{display:flex;align-items:center;gap:8px}
+.pill{display:flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums;font-size:.76rem;background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:5px 10px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap}
+.pill svg{width:13px;height:13px;fill:currentColor;stroke:none}
+.small{font:inherit;font-size:.76rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer}
+.icon{display:grid;place-items:center;width:36px;height:36px;padding:0;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:50%;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
-.mode{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 250px);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
-.mode > *{pointer-events:auto}
-#toasts{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 150px);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
-.toast{background:var(--glass-2);border:1px solid var(--line);border-radius:12px;padding:7px 12px;font-size:.83rem;max-width:28rem;text-align:center;transition:opacity .5s,transform .5s}
+#followbtn{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 128px)}
+#toasts{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 64px);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.toast{background:var(--glass-2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.8rem;max-width:24rem;text-align:center;transition:opacity .5s,transform .5s}
 .toast.out{opacity:0;transform:translateY(-6px)}
 .bottom{bottom:0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px);justify-content:center}
-.deck{max-width:34rem;width:100%;display:flex;flex-direction:column;gap:8px}
-#current{position:relative;overflow:hidden;background:var(--glass-2);border:1px solid var(--line);border-radius:14px;padding:12px 14px 12px;display:flex;flex-direction:column;gap:6px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-#current::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--stripe,#888)}
-.cardhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.cardhead .lbl{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-2)}
-#cardname{font-family:var(--display);font-size:1.45rem;line-height:1}
-#cardtext{font-size:.8rem;color:var(--fg-2);line-height:1.4}
-#prompt{font-size:.84rem;font-weight:600}
-.actions{display:flex;gap:8px;align-items:center}
-#confirm{font:inherit;font-weight:800;font-size:.95rem;color:#22180c;background:var(--accent);border:0;border-radius:999px;padding:10px 22px;cursor:pointer}
-#confirm:disabled{opacity:.4;cursor:default}
-.handrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.hcard{position:relative;overflow:hidden;font:inherit;font-family:var(--display);font-size:1rem;color:var(--fg);background:var(--glass-2);border:1px solid var(--line);border-radius:10px;padding:9px 8px 9px 14px;text-align:left;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;text-overflow:ellipsis}
-.hcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--stripe,#888)}
-.hcard[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);transform:translateY(-3px)}
-#handinfo{font-size:.7rem;color:var(--fg-2);letter-spacing:.03em;text-align:center}
-.chip{position:relative;overflow:hidden;font-size:.76rem;font-weight:700;color:var(--fg);background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:4px 10px 4px 12px;letter-spacing:0}
-.chip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--stripe,#888)}
+.deck{max-width:30rem;width:100%;display:flex;flex-direction:column;gap:8px}
+.actbar{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px}
+#prompt{font-size:.8rem;color:var(--fg-2);text-shadow:0 1px 6px rgba(0,0,0,.8)}
+#prompt:empty{display:none}
+#confirm{font:inherit;font-weight:800;font-size:.92rem;color:#22180c;background:var(--accent);border:0;border-radius:999px;padding:9px 22px;cursor:pointer}
+.handrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.slot{position:relative;min-height:66px}
+.slot.empty{border:1px dashed var(--line);border-radius:12px}
+.hcard{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:inherit;font-size:.74rem;font-weight:700;letter-spacing:.02em;color:var(--fg);background:var(--glass-2);border:1px solid var(--line);border-radius:12px;padding:8px 4px;cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .15s}
+.hcard svg{width:24px;height:24px;color:var(--stripe,#888)}
+.hcard[aria-pressed="true"]{border-color:var(--stripe,var(--accent));box-shadow:inset 0 0 0 1px var(--stripe,var(--accent));transform:translateY(-4px)}
+.q{position:absolute;top:4px;right:4px;width:20px;height:20px;padding:0;border-radius:50%;font:inherit;font-size:.68rem;font-weight:800;color:var(--fg-2);background:transparent;border:1px solid var(--line);cursor:pointer}
+.tip{position:fixed;left:12px;right:12px;margin:0 auto;max-width:26rem;bottom:calc(env(safe-area-inset-bottom,0px) + 136px);background:var(--glass-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.84rem;line-height:1.45;color:var(--fg-2);display:flex;flex-direction:column;gap:3px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.tip b{color:var(--fg);font-family:var(--display);font-weight:400;font-size:1.05rem}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sheet{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(6,9,10,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .box{background:var(--glass-2);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:28rem;width:100%;max-height:calc(100% - 32px);overflow:auto;display:flex;flex-direction:column;gap:10px;box-sizing:border-box}
@@ -65,6 +61,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .box ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px}
 .box b{color:var(--fg)}
 .primary{font:inherit;font-weight:700;color:#22180c;background:var(--accent);border:0;border-radius:999px;padding:9px 18px;cursor:pointer}
+.box p:empty{display:none}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .stats div{background:rgba(241,233,216,.06);border-radius:10px;padding:8px;display:flex;flex-direction:column}
 .stats .v{font-family:var(--display);font-size:1.15rem;font-variant-numeric:tabular-nums}
@@ -86,33 +83,47 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 <div class="hud top">
   <div class="left">
     <span class="h" id="h">0.00 m</span>
-    <span class="hp"><span id="hp">Health</span><span class="bar"><i id="hpbar"></i></span></span>
-    <span class="sub" id="score"></span>
-    <span class="sub" id="stats"></span>
-    <span class="sub" id="place"></span>
-    <span class="sub" id="runname"></span>
-    <span class="sub" id="blend"></span>
+    <span class="bar" title="Health"><i id="hpbar"></i></span>
   </div>
   <div class="right">
-    <div class="pill" id="clock"></div>
-    <div class="row"><button type="button" class="small" id="aboutbtn">How to play</button><button type="button" class="small" id="newbtn">New tree</button></div>
-    <div id="confirmnew" hidden>Plant a new tree? <button type="button" class="small" id="newyes">Yes</button><button type="button" class="small" id="newno">No</button></div>
+    <span class="pill" id="clock"></span>
+    <button type="button" class="icon" id="menubtn" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   </div>
 </div>
 
 <div id="toasts" aria-live="polite"></div>
-<div class="hud mode"><span class="pill" id="modechip">Following the growth</span><button type="button" class="small" id="followbtn" hidden>Follow growth</button></div>
+<button type="button" class="icon" id="followbtn" aria-label="Follow the growth" hidden><svg viewBox="0 0 24 24"><path d="M12 20V6M6 11l6-6 6 6M5 21h14"/></svg></button>
 
 <div class="hud bottom">
   <div class="deck">
-    <div id="current">
-      <div class="cardhead"><span id="cardname">Cut</span><span class="lbl">Forced</span></div>
-      <span id="cardtext"></span>
+    <div class="actbar">
       <span id="prompt"></span>
-      <div class="actions"><button type="button" id="confirm" disabled>Cut here</button><button type="button" class="small" id="cancel" hidden>Choose again</button></div>
+      <button type="button" class="icon" id="cancel" aria-label="Choose again" hidden><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button type="button" id="confirm" hidden>Cut</button>
     </div>
     <div class="handrow" id="hand"></div>
-    <span id="handinfo"></span>
+  </div>
+</div>
+<div class="tip" id="tip" hidden><b id="tipname"></b><span id="tiptext"></span></div>
+
+<div class="sheet" id="menu" hidden>
+  <div class="box" role="dialog" aria-labelledby="mnt">
+    <h2 id="mnt">Temple fig</h2>
+    <div class="stats">
+      <div><span class="v" id="m-s"></span><span class="k">Score</span></div>
+      <div><span class="v" id="m-p"></span><span class="k">Best</span></div>
+      <div><span class="v" id="m-hp"></span><span class="k">Health</span></div>
+      <div><span class="v" id="m-n"></span><span class="k">Shoots</span></div>
+    </div>
+    <p id="m-place"></p>
+    <p id="m-time"></p>
+    <p id="m-run"></p>
+    <div class="row" style="justify-content:flex-start">
+      <button type="button" class="small" id="aboutbtn">How to play</button>
+      <button type="button" class="small" id="newbtn">New tree</button>
+    </div>
+    <div id="confirmnew" hidden>Plant a new tree? This one is lost. <button type="button" class="small" id="newyes">Yes</button><button type="button" class="small" id="newno">No</button></div>
+    <div><button type="button" class="primary" id="menuok">Back to the tree</button></div>
   </div>
 </div>
 
@@ -134,7 +145,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <span class="sw" style="background:#7dffb0"></span><span>Buds that will wake</span>
       <span class="dot" style="background:#9be37a"></span><span>Healthy shoot · <span style="color:#ffd166">fair</span> · <span style="color:#ffa24a">poor</span> · <span style="color:#ff5a4a">dying</span></span>
     </div>
-    <p>Drag sideways to walk around, pinch to zoom, drag up or down to look along the tree. Tap a branch to ride it.</p>
+    <p>Drag sideways to walk around, pinch to zoom, drag up or down to look along the tree. Tap a branch to ride it; the arrow button returns to following the growth. Tap <b>?</b> on a card to see what it does. Score, place and a new tree are in the menu.</p>
     <div><button type="button" class="primary" id="aboutok">Back to the tree</button></div>
   </div>
 </div>

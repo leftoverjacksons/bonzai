@@ -480,7 +480,7 @@ export function play(g, a){
 
 // ---------- growth turn ----------
 function growTurn(g){
-  const plan = planTurn(g);
+  const plan = planTurn(g), shootsBefore = g.shoots.length;
   const R = mulberry32(hashInt(g.seed, 700 + g.turn));
   const added = [];
   for (const i of plan.info){
@@ -564,6 +564,7 @@ function growTurn(g){
   g.healthSum += g.health; g.healthTurns++;
   g.follow = followPoint(g, g.shoots.map(s => s.node));
   if (!g.shoots.length){ g.over = true; ev(g, 'over'); }
+  else if (g.shoots.length === 1 && shootsBefore > 1) ev(g, 'last');  // the warning before the run can end (§4.6)
   else if (g.health < 0.3) ev(g, 'weak');
 }
 function isAncestor(g, a, b){ let id = b; while (id >= 0){ if (id === a) return true; id = g.nodes[id].parent; } return false; }
