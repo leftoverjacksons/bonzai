@@ -170,17 +170,18 @@ function makeStoneTex(w3, R){
 const barkMat = new THREE.MeshStandardMaterial({map:bark.map, bumpMap:bark.bump, bumpScale:1.6, roughness:0.9, emissiveMap:bark.veins, emissive:0xffffff, emissiveIntensity:0});
 const groundMat = new THREE.MeshStandardMaterial({map:groundTex, roughness:1});
 let vineMat = new THREE.MeshStandardMaterial({color:0x40502c, roughness:0.8});
-const timeU = {value:0}, animU = {value:1e4};
+const timeU = {value:0}, animU = {value:1e4}, windU = {value:0};  // windU: gust strength 0..1
 const leafMat = new THREE.MeshStandardMaterial({map:leafTex, alphaTest:0.5, side:THREE.DoubleSide, roughness:0.7, metalness:0});
 leafMat.onBeforeCompile = sh => {
-  sh.uniforms.uTime = timeU; sh.uniforms.uAnim = animU;
-  sh.vertexShader = 'uniform float uTime; uniform float uAnim; attribute float aStart;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+  sh.uniforms.uTime = timeU; sh.uniforms.uAnim = animU; sh.uniforms.uWind = windU;
+  sh.vertexShader = 'uniform float uTime; uniform float uAnim; uniform float uWind; attribute float aStart;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
   transformed *= smoothstep(aStart, aStart + 0.45, uAnim);
   #ifdef USE_INSTANCING
     vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
     float sw = sin(uTime*1.7 + ip.x*2.3 + ip.z*1.9)*0.6 + sin(uTime*3.1 + ip.y*4.1 + ip.x)*0.4;
-    transformed.x += sw*0.12*position.y;
-    transformed.z += sw*0.08*position.y;
+    float fl = 0.07 + 0.11*uWind;  // long-stalked fig leaves flutter, more in a gust
+    transformed.x += sw*fl*position.y;
+    transformed.z += sw*fl*0.7*position.y;
   #endif`);
 };
 const leafDepth = new THREE.MeshDepthMaterial({map:leafTex, alphaTest:0.5, depthPacking:THREE.RGBADepthPacking});
@@ -188,7 +189,39 @@ leafDepth.onBeforeCompile = sh => {
   sh.uniforms.uAnim = animU;
   sh.vertexShader = 'uniform float uAnim; attribute float aStart;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed *= smoothstep(aStart, aStart + 0.45, uAnim);');
 };
-const bloomMat = new THREE.MeshStandardMaterial({color:0xffffff, emissive:0xff3d8b, emissiveIntensity:0, roughness:0.45});  // figs; they glow faintly at night
+// The whole tree sways as one: a smooth displacement field in world space, so wood, leaves and figs stay joined.
+// Zero at the root flare, growing with height; a slow wave travels up the tree.
+const SWAY_GLSL = `
+vec3 treeSway(vec3 p){
+  float h = smoothstep(0.3, 2.2, p.y);
+  float a = sin(uTime*0.8 + p.y*0.35) + 0.5*sin(uTime*1.9 + p.y*0.9 + 1.3);
+  float b = sin(uTime*0.65 + p.y*0.3 + 2.1) + 0.4*sin(uTime*2.3 + p.y*1.1);
+  return vec3(a, 0.0, b)*(0.005 + 0.016*uWind)*h;
+}
+`;
+function addSway(mat, key){
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    prev.call(mat, sh, r);
+    sh.uniforms.uTime = timeU; sh.uniforms.uWind = windU;
+    let v = sh.vertexShader;
+    if (!v.includes('uniform float uTime;')) v = 'uniform float uTime;\n' + v;
+    if (!v.includes('uniform float uWind;')) v = 'uniform float uWind;\n' + v;
+    sh.vertexShader = v.replace('void main() {', SWAY_GLSL + 'void main() {').replace('#include <project_vertex>', `
+  vec4 swP = vec4(transformed, 1.0);
+  #ifdef USE_INSTANCING
+    swP = instanceMatrix*swP;
+  #endif
+  swP = modelMatrix*swP;
+  swP.xyz += treeSway(swP.xyz);
+  vec4 mvPosition = viewMatrix*swP;
+  gl_Position = projectionMatrix*mvPosition;`);
+  };
+  mat.customProgramCacheKey = () => 'sway-' + key;
+  return mat;
+}
+addSway(barkMat, 'bark'); addSway(leafMat, 'leaf');
+const bloomMat = addSway(new THREE.MeshStandardMaterial({color:0xffffff, emissive:0xff3d8b, emissiveIntensity:0, roughness:0.45}), 'fig');  // figs; they glow faintly at night
 const beamMat = new THREE.ShaderMaterial({
   transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, fog:false,
   uniforms:{color:{value:new THREE.Color(1,1,1)}, opacity:{value:0}, time:timeU},
@@ -380,7 +413,7 @@ function palette(el){
   return {a, b, t, n:k => lerp(a[k], b[k], t)};
 }
 const sunDir = new THREE.Vector3(), moonDir = new THREE.Vector3(), MOTE_DAY = new THREE.Color(0xffe6bf);
-let hours = GCFG.START_HOUR, hoursTo = hours;
+let hours = GCFG.START_HOUR, hoursTo = hours, nightK = 0;
 function applyTime(){
   const tod = hours/24, ang = (tod-0.25)*TAU;
   const el = Math.asin(Math.sin(ang)*Math.sin(1.15));
@@ -401,7 +434,7 @@ function applyTime(){
   lerpHex(p.a.hs, p.b.hs, p.t, hemi.color); lerpHex(p.a.hg, p.b.hg, p.t, hemi.groundColor);
   hemi.intensity = p.n('hi'); amb.intensity = p.n('amb');
   renderer.toneMappingExposure = p.n('exp');
-  const glow = p.n('glow');
+  const glow = p.n('glow'); nightK = glow;
   fill.intensity = p.n('fill');
   bloomMat.emissiveIntensity = glow*1.6;
   barkMat.emissiveIntensity = glow*0.5;
@@ -520,7 +553,7 @@ function withCenter(geo, x, y, z){
 function syncWorld(){ while (world.built < g.modules.length) buildModule(g.modules[world.built++]); }
 
 // ---------- tree ----------
-const deadMat = new THREE.MeshStandardMaterial({color:0xcfc8ba, map:bark.map, bumpMap:bark.bump, bumpScale:1.2, roughness:0.85});
+const deadMat = addSway(new THREE.MeshStandardMaterial({color:0xcfc8ba, map:bark.map, bumpMap:bark.bump, bumpScale:1.2, roughness:0.85}), 'dead');
 let woodMesh = null, deadMesh = null, rootMesh = null, leafMesh = null, blossomMesh = null, newSegs = null, anim = null;
 const segGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); segGeo.translate(0, 0.5, 0);
 const leafGeo = new THREE.PlaneGeometry(0.09, 0.18); leafGeo.translate(0, 0.09, 0);
@@ -549,7 +582,7 @@ function chainsOf(limit){
   }
   return out;
 }
-const cutMat = new THREE.MeshStandardMaterial({color:0xe2cba4, roughness:0.75});
+const cutMat = addSway(new THREE.MeshStandardMaterial({color:0xe2cba4, roughness:0.75}), 'cut');
 let cutMesh = null;
 function buildWood(limit){
   woodMesh = disposeMesh(woodMesh); deadMesh = disposeMesh(deadMesh); cutMesh = disposeMesh(cutMesh);
@@ -901,9 +934,11 @@ let g, busy = false, sel = null, active = 0;
 function save(){ store.set(KEY, {seed:g.seed, log:g.log}); }
 function startRun(seed, log=[]){
   busy = true;
+  const sameRuins = g && g.seed === seed && world.group;  // an undo keeps the ruins: they depend only on the seed
   g = log.length ? replayGame(seed, log) : newGame(seed);
   sel = null; plan = null; active = 0;
-  resetWorld(); syncWorld(); buildRings();
+  if (!sameRuins) resetWorld();
+  syncWorld(); buildRings();
   newSegs = disposeMesh(newSegs); anim = null; animU.value = 1e4;
   buildRoots(); buildWood(g.nodes.length); buildLeaves(null);
   hours = hoursTo = GCFG.START_HOUR + g.turn*24/GCFG.TURNS_PER_DAY;
@@ -976,6 +1011,7 @@ function renderUI(){
   if (!$('menu').hidden) renderMenu();
 }
 function renderMenu(){
+  $('undobtn').disabled = !g.log.length;
   $('m-s').textContent = score(g);
   $('m-p').textContent = g.peak.toFixed(1) + ' m';
   $('m-hp').textContent = Math.round(g.health*100) + '%';
@@ -1008,6 +1044,15 @@ $('tip').addEventListener('click', () => { $('tip').hidden = true; tipFor = -1; 
 $('aboutok').addEventListener('click', () => { $('about').hidden = true; });
 $('o-new').addEventListener('click', () => { $('over').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
 $('o-look').addEventListener('click', () => { $('over').hidden = true; });
+// undo: the run is its seed plus the list of moves, so dropping the last move and replaying restores the tree exactly
+function undo(){
+  if (anim || busy || !g.log.length) return;
+  $('menu').hidden = true;
+  startRun(g.seed, g.log.slice(0, -1));
+  toast('Undone');
+}
+$('undobtn').addEventListener('click', undo);
+$('o-undo').addEventListener('click', undo);
 function showOver(){
   $('o-h').textContent = g.peak.toFixed(2) + ' m';
   $('o-hp').textContent = Math.round(avgHealth(g)*100) + '%';
@@ -1043,6 +1088,74 @@ function resize(){
 }
 window.addEventListener('resize', resize);
 
+// ---------- environment: wind gusts, falling leaves, butterflies by day ----------
+// Wind: a slow, irregular gust strength that drives sway, leaf flutter and leaf fall.
+const windDir = V(0.8, 0, 0.6).normalize();
+function gustAt(t){ const a = 0.5 + 0.5*Math.sin(t*0.11)*Math.sin(t*0.047 + 1.3); return clamp(a*a*1.6 + 0.1*Math.sin(t*0.9), 0, 1); }
+// Falling leaves: old fig leaves turn yellow and drop; more in a gust. A small recycled pool.
+const FALL = 12, fallMat = new THREE.MeshStandardMaterial({map:leafTex, alphaTest:0.5, side:THREE.DoubleSide, roughness:0.75});
+const fallMesh = new THREE.InstancedMesh(leafGeo, fallMat, FALL); fallMesh.frustumCulled = false; fallMesh.castShadow = true; scene.add(fallMesh);
+const falling = Array.from({length:FALL}, () => ({live:false})), envR = mulberry32(77), envD = new THREE.Object3D(), envC = new THREE.Color();
+for (let i=0;i<FALL;i++){ envD.scale.setScalar(0); envD.updateMatrix(); fallMesh.setMatrixAt(i, envD.matrix); fallMesh.setColorAt(i, envC.setHSL(0.13 + envR()*0.05, 0.6, 0.38)); }
+// Butterflies: two hinged wings each, flapping, wandering around the foliage near the camera's focus. Day only.
+const wingTex = canvasTex(64, 64, (c) => {
+  c.fillStyle = '#ffffff';
+  c.beginPath(); c.ellipse(26, 22, 24, 18, -0.35, 0, TAU); c.fill();
+  c.beginPath(); c.ellipse(20, 46, 15, 13, 0.4, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(30,24,20,0.85)'; c.beginPath(); c.arc(36, 16, 5, 0, TAU); c.fill();
+  c.strokeStyle = 'rgba(30,24,20,0.7)'; c.lineWidth = 3; c.beginPath(); c.ellipse(26, 22, 22, 16, -0.35, 0, TAU); c.stroke();
+}, false);
+const BUTTER = 3, wingGeo = new THREE.PlaneGeometry(0.06, 0.06); wingGeo.translate(0.03, 0, 0);
+const wingMat = new THREE.MeshStandardMaterial({map:wingTex, alphaTest:0.5, side:THREE.DoubleSide, roughness:0.6, emissive:0x222222});
+const wingMesh = new THREE.InstancedMesh(wingGeo, wingMat, BUTTER*2); wingMesh.frustumCulled = false; scene.add(wingMesh);
+const butter = Array.from({length:BUTTER}, (_, i) => ({ph:envR()*TAU, sp:0.7 + envR()*0.6, r:0.5 + envR()*0.8, y:-0.2 + envR()*1.2}));
+const WING_COL = [0xffd23a, 0x5ad8ff, 0xff7a3a];
+for (let i=0;i<BUTTER;i++){ envC.set(WING_COL[i]); wingMesh.setColorAt(i*2, envC); wingMesh.setColorAt(i*2+1, envC); }
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qc = new THREE.Quaternion(), ax = {x:V(1,0,0), y:V(0,1,0), z:V(0,0,1)};
+function stepEnv(dt, t){
+  const gust = gustAt(t);
+  windU.value = gust;
+  // drop a leaf now and then from a shoot near the view
+  if (g && g.shoots.length && envR() < dt*(0.08 + 0.7*gust)){
+    const f = falling.find(f => !f.live);
+    const near = g.shoots.map(s => g.nodes[s.node]).filter(n => Math.abs(n.y - cam.focus.y) < 2.5);
+    if (f && near.length){
+      const n = near[Math.floor(envR()*near.length)];
+      Object.assign(f, {live:true, age:0, p:V(n.x + (envR()-.5)*0.15, n.y, n.z + (envR()-.5)*0.15), spin:V(envR()*TAU, envR()*TAU, envR()*TAU), ph:envR()*TAU, life:9 + envR()*6});
+    }
+  }
+  falling.forEach((f, i) => {
+    if (!f.live) return;
+    f.age += dt;
+    f.p.y -= dt*(0.22 + 0.06*Math.sin(t*2 + f.ph));
+    f.p.addScaledVector(windDir, dt*(0.05 + 0.35*gust));
+    f.p.x += Math.sin(t*1.7 + f.ph)*dt*0.12; f.p.z += Math.cos(t*1.3 + f.ph)*dt*0.12;
+    if (Math.hypot(f.p.x, f.p.z) > GCFG.HALF - 0.1) f.p.multiplyScalar(0.995);
+    f.spin.x += dt*1.6; f.spin.z += dt*2.1;
+    const k = clamp(Math.min(f.age*3, (f.life - f.age)*1.5), 0, 1);
+    if (f.age > f.life || f.p.y < -0.7){ f.live = false; }
+    envD.position.copy(f.p); envD.rotation.set(f.spin.x, f.spin.y, f.spin.z); envD.scale.setScalar(f.live ? k : 0); envD.updateMatrix();
+    fallMesh.setMatrixAt(i, envD.matrix);
+  });
+  fallMesh.instanceMatrix.needsUpdate = true;
+  // butterflies fade out at dusk; fireflies (the motes) take over at night
+  const show = clamp(1 - nightK*2.5, 0, 1);
+  wingMesh.visible = show > 0.02;
+  butter.forEach((b, i) => {
+    const a = b.ph + t*0.3*b.sp, r = b.r + 0.25*Math.sin(t*0.5 + b.ph);
+    const x = Math.cos(a)*r + cam.focus.x*0.5, z = Math.sin(a)*r + cam.focus.z*0.5;
+    const y = cam.focus.y + b.y + 0.2*Math.sin(t*1.1*b.sp + b.ph) + 0.05*Math.sin(t*7 + b.ph);
+    const yaw = -a, flap = 0.25 + 0.95*Math.abs(Math.sin(t*14*b.sp + b.ph));
+    for (const side of [1, -1]){
+      qa.setFromAxisAngle(ax.y, yaw); qb.setFromAxisAngle(ax.z, side*flap); qc.setFromAxisAngle(ax.x, -Math.PI/2);
+      qa.multiply(qb).multiply(qc);
+      envD.position.set(x, y, z); envD.quaternion.copy(qa); envD.scale.set(side*show, show, show); envD.updateMatrix();
+      wingMesh.setMatrixAt(i*2 + (side > 0 ? 0 : 1), envD.matrix);
+    }
+  });
+  wingMesh.instanceMatrix.needsUpdate = true;
+}
+
 const clock = new THREE.Clock();
 let first = true;
 function frame(){
@@ -1062,6 +1175,7 @@ function frame(){
   sky.position.copy(camera.position);
   cutU.cam.value.copy(camera.position); cutU.focus.value.copy(cam.focus);
   const t = timeU.value;
+  stepEnv(dt, t);
   for (let i=0;i<MOTES;i++){
     const [a, r, y, ph, sp] = moteSeed[i], aa = a + t*0.05*sp;
     motePos[i*3] = Math.cos(aa)*r + Math.sin(t*0.7*sp+ph)*0.15;

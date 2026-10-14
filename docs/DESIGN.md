@@ -267,6 +267,7 @@ Earlier list (v0 ideas, kept for reference):
 - **Decided:** the tree must stay clearly visible at night (night is darker and moodier, never unreadable).
 - Night look: moonlight, stars, fireflies, figs that glow faintly, magical glow in the stone.
 - **Decided:** day and night change the rules a little. In prototype v0: sunlight (and therefore sap from tips) exists only by day; at night only the roots, Lanterns and the night-only Moonbloom card feed the tree, and wood upkeep still has to be paid, so sap must be saved during the day (§18).
+- **Changed (2026-10-14): night no longer changes the rules** (`NIGHT_RULES` off). Real trees do not stop growing at night: they make sugar by day but much of their growth happens at night, when the air is moist and water tension in the tree is low (Zweifel et al. 2021, *New Phytologist*, "Why trees grow at night"). Night is visual only until there is a good reason for a rule. If one returns, a biologically sound version would be the reverse of the old rule: growth by night, with daytime heat or dry air slowing it.
 - **Open:** night-only hazards; whether night should be shorter or longer than day.
 
 ---
@@ -310,6 +311,14 @@ Earlier list (v0 ideas, kept for reference):
   - **Maya:** pale limestone with traces of red paint, stepped forms and corbel (stepped) arches, glyph panels, jade green.
 - **Proposal:** the blend is a set of three weights drawn from the run seed. It sets stone colour, which carved motifs appear, which architectural pieces are used, the colour of magical glow (cyan, gold, jade), and whether there is standing water.
 
+### 10.3b Living environment (started 2026-10-14)
+
+- **Wind:** a slow, irregular gust strength drives everything below, so the scene breathes together.
+- **Sway:** the whole tree sways gently as one piece (a smooth displacement field in world space, zero at the root flare, increasing with height), so wood, leaves and figs stay joined. Fig leaves flutter on their long stalks, more in a gust.
+- **Falling leaves:** old leaves turn yellow and drift down from shoots near the view, more often in gusts.
+- **Butterflies** wander around the foliage by day; at night the fireflies take over.
+- Ideas for later: rain and mist, water dripping into pools, birds crossing the sky, dust stirred by a gust, petals or seeds from vines on the ruins.
+
 ### 10.4 Rejected looks
 
 - Ink wash (sumi-e) in 2.5D: liked the beauty, but wanted lush colour.
@@ -331,6 +340,7 @@ Earlier list (v0 ideas, kept for reference):
 - **Proposal:** save a run as its **seed plus the list of moves**. Replaying the moves rebuilds the exact tree. This keeps saves tiny, makes the gallery cheap (each gallery tree is a seed and move list), and later allows sharing a tree with a friend as a short code.
 - **Proposal:** autosave after every turn and when the app goes to the background, using browser local storage (`localStorage` or IndexedDB). Caveat: data lives in one browser on one device and is lost if site data is cleared. Cross-device sync is out of scope for now.
 - Determinism requirement: all randomness must come from the seeded generator so replays are exact.
+- **Undo (decided 2026-10-14):** "Undo last card" in the menu (and on the end-of-run screen) drops the last move and replays the rest. It can be pressed repeatedly. Because the card draw is seeded, an undone hand comes back the same.
 
 ---
 
@@ -400,6 +410,9 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Fig details from research: heart-shaped leaves with drip tips, coppery new leaves, paired figs instead of blossoms (§4.10a) | Generic leaves and glowing blossoms | Figs have no visible flowers; make the first species true to life. |
 | 2026-10-14 | Runs stay open-ended for now | Turn limit; health falling with height; drought events | Not yet clear what should end a skilled run; decide after more play. |
 | 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
+| 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
+| 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
+| 2026-10-14 | Undo last card, in the menu | No undo | Requested; cheap because a run is a seed plus a move list. |
 | 2026-10-14 | Strata v1: 8 m bands; ruins close in and shoots grow 15% slower per band (working values) | Rule changes per band; new obstacle types | Smallest change that makes height harder; grounded in the hydraulic limit on tree height. |
 
 ---

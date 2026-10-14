@@ -12,7 +12,8 @@ export const GCFG = {
   PIPE: 2.2,            // pipe model exponent for branch thickness
   YIELD: 0.3,           // metres of growth one fully lit, uncrowded shoot pays for per turn
   ROOT_ENERGY: 0.12,    // from the roots each turn, day or night
-  NIGHT_LIGHT: 0.08,    // night energy as a fraction of day
+  NIGHT_RULES: false,   // off (2026-10-14): real trees keep growing at night, mostly on sugar made by day; night is visual only for now
+  NIGHT_LIGHT: 0.08,    // night energy as a fraction of day, when NIGHT_RULES is on
   APICAL: 2.6,          // per metre of height: how strongly higher shoots win energy
   MAX_EXT: 0.3,         // most one shoot can extend in a turn
   MIN_SHARE: 0.05,      // a shoot getting less than this by day is starving
@@ -271,7 +272,7 @@ export function slideDir(g, n, d, ldir){
 
 // What each shoot will do this turn: light, crowding, energy share, extension, and whether stone is right ahead.
 export function planTurn(g){
-  const day = isDay(g.turn);
+  const day = !G.NIGHT_RULES || isDay(g.turn);
   const info = g.shoots.map(s => {
     const n = g.nodes[s.node];
     const solids = solidsNear(g, n.y - 0.5, n.y + G.SKY_LEN);
