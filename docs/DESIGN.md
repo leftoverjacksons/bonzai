@@ -156,12 +156,14 @@ Chosen as the second species because it plays very differently from the fig: the
 |---|---|
 | Foliage only near the branch tips, in light; bare inner wood rarely or never produces new buds. Growers keep green foliage on every branch they want to keep. | Buds wake only within the foliage (a living tip and the 3 nodes behind it). Cut and Rooting powder do nothing on bare wood. No regrowth after die-back. |
 | A branch with no foliage dies; the dead wood is resinous and lasts, and bonsai artists keep it as jin (dead branch) and shari (stripped trunk). | Living wood that no longer leads to foliage dies and stays as silver deadwood. The cut preview shows that stub in red too. |
-| Slow growing, very hardy, needs strong sun. | Growth about two thirds of the fig; smaller health losses from stone and hunger, larger from shade; slower healing. |
+| Slow growing, very hardy, needs strong sun. Healthy junipers are dense and compact: short shoots, constant fine branching near the tips, clouds of foliage. | **Revised after playtest (the juniper looked spindly and died off fast):** short segments (8 cm, fig 12 cm), slow extension (at most 7 cm a turn, fig 30), frequent branching near the tips, a weaker upward pull so branches spread, foliage along the last 5 segments of every branch drawn as dense pads. Smaller losses from stone and hunger, shade no harsher than the fig's; slower healing. (Bug fixed at the same time: natural branching needed more growth per turn than the juniper could ever make, so it never branched on its own.) |
+| In poor light junipers stretch: long thin shoots, few side branches, inner foliage lost. | In shade a juniper shoot grows up to 35% longer and does not branch, so a spindly juniper tells you it needs light. |
+| A branch that has lost all its foliage declines over months before it is dead. | A bare juniper branch browns for 3 turns before it dies to deadwood ("A bare branch is dying"). |
 | Stiff, flexible wood that takes wire well; dense, bushy growth. Junipers take strong bends even in old wood but hold them only after a long time. | Less sag, snaps later; more Wire cards; weaker apical dominance and more natural branching. Wire bends thick juniper wood about as much as half as thick fig wood, more slowly, and stays on 9 turns (fig 4). Copper wire with a raffia-wrapped tie (fig: brown aluminium, rubber sleeve). Coil wiring along the branch: later. |
 | Scale foliage in flat sprays; reddish, stringy bark; blue, berry-like cones. | Fern-like sprays, blue-green; reddish bark; single blue-grey berries. |
 | Old junipers have twisted trunks: the grain spirals, live veins stand out as ridges, and bonsai keep stripped, bleached deadwood on the trunk (shari) and dead branches (jin). | Starting trunk curves more and twists; ridges and bark grain spiral with it; a silver shari strip spirals up the trunk; the starting tree carries one jin. Deadwood is bleached near-white (2026-10-14). |
 
-Bot results over 150 turns, 12 seeds: careful 13.8 m (fig 21.5 m), 8 of 12 runs ended (fig 2); careless 10.0 m (fig 9.8 m). The careful bot was written for the fig and cuts deep, which the juniper punishes, so its numbers understate what good juniper play can do.
+Bot results over 150 turns, 12 seeds, after the reshaping and with pick-one-of-three (2026-10-14): juniper careful 10.9 m, careless 11.0 m, random 5.8 m, 0 of 12 careful runs ended; fig careful 14.7 m, careless 7.0 m, random 4.5 m. The juniper is now slow and tough as intended, but the bots show no gap between careful and careless juniper play: the careful bot does not know juniper technique (keep foliage on every branch, wire rather than cut). To judge by playing.
 
 ### 4.10c Choosing a tree (decided 2026-10-14)
 
@@ -190,7 +192,7 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 
 ## 5. Actions (cards)
 
-**Decided (2026-10-14), current rules:** a hand of three cards, all forced. Play all three, in any order you like; the tree grows after each card. The hand is never three of the same card. Real bonsai work only:
+**Decided (2026-10-14, revised the same day), current rules:** you are dealt three cards and play one; the tree grows, the other two are discarded and three new cards are dealt. The hand is never three of the same card. (Before: play all three in any order.) Real bonsai work only:
 
 | Card | Target | Effect |
 |---|---|---|
@@ -289,6 +291,8 @@ Earlier list (v0 ideas, kept for reference):
 - **Decided:** the tree must stay clearly visible at night (night is darker and moodier, never unreadable).
 - Night look: moonlight, stars, fireflies, figs that glow faintly, magical glow in the stone.
 - **Decided:** day and night change the rules a little. In prototype v0: sunlight (and therefore sap from tips) exists only by day; at night only the roots, Lanterns and the night-only Moonbloom card feed the tree, and wood upkeep still has to be paid, so sap must be saved during the day (§18).
+- **Dead twigs fall (2026-10-14, both species):** thin dead twigs (under 2.5 cm radius) break off 8 turns after dying; thicker deadwood stays. Real trees shed dead twigs; it also keeps the tree light enough to draw and simulate on a phone.
+- **Shade, both species (2026-10-14):** with night no longer counting, shade applied every turn and was too harsh. Now a shoot must be shaded for more than 2 turns (juniper 3) before it loses health, and then loses 0.08 a turn (was 0.12 by day only).
 - **Changed (2026-10-14): night no longer changes the rules** (`NIGHT_RULES` off). Real trees do not stop growing at night: they make sugar by day but much of their growth happens at night, when the air is moist and water tension in the tree is low (Zweifel et al. 2021, *New Phytologist*, "Why trees grow at night"). Night is visual only until there is a good reason for a rule. If one returns, a biologically sound version would be the reverse of the old rule: growth by night, with daytime heat or dry air slowing it.
 - **Open:** night-only hazards; whether night should be shorter or longer than day.
 
@@ -437,6 +441,8 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
 | 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
 | 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
+| 2026-10-14 | Pick one of three: three cards dealt, play one, the rest discarded | Play all three in any order | Requested: simpler, one decision per turn. |
+| 2026-10-14 | Juniper reshaped: compact and bushy, stretches in shade, bare branches die slowly; shade grace for both species | Leave as is | Playtest: juniper looked spindly and died off fast. |
 | 2026-10-14 | Root anchoring saved for a later banyan-type fig | Add it to the temple fig now (rare and slow) | The temple fig makes few aerial roots; anchoring is a strong signature for a new species. |
 | 2026-10-14 | Wire is a guy wire: tie point on a branch, branch bends toward the ring over turns, wire comes off when set | Tip grows to the ring and climbs (old); coil wiring; manual removal with bite scars | Closer to real bonsai and away from the vine feel; automatic removal keeps it simple for now. |
 | 2026-10-14 | Second species: juniper; choose the species when planting a new tree | Pine (candle bursts), Japanese maple, wisteria (a vine) | Most different play from the fig: no regrowth from bare wood, so every cut is planned. |

@@ -493,7 +493,7 @@ const LOOK = {
   fig:{tex:leafTex, pad:[16, 6], spread:[0.12, 0.09], size:1, hue:null, sat:0.55, light:0.17, young:LEAF_YOUNG, youngK:0.5,
     fruit:{p:0.3, pair:true, from:FIG_GREEN, to:FIG_RIPE, size:1}, bark:new THREE.Color(1, 1, 1),
     trunk:{flutes:5, fluteAmp:0.3, fluteFade:0.12, twist:0}, shari:null, dead:new THREE.Color(0xcfc8ba)},
-  juniper:{tex:juniperTex, pad:[30, 12], spread:[0.11, 0.08], size:0.75, hue:0.40, sat:0.34, light:0.2, young:new THREE.Color(0x8cc46a), youngK:0.3,
+  juniper:{tex:juniperTex, pad:[24, 14], back:5, spread:[0.1, 0.09], size:0.7, hue:0.40, sat:0.34, light:0.2, young:new THREE.Color(0x8cc46a), youngK:0.3,
     fruit:{p:0.22, pair:false, from:new THREE.Color(0x6f8a5a), to:new THREE.Color(0x5a6f9e), size:0.7}, bark:new THREE.Color(1.15, 0.82, 0.68),
     // the trunk twists with deep, spiralling ridges (live veins) along its whole length
     trunk:{flutes:6, fluteAmp:0.22, fluteFade:1.0, twist:1.3}, shari:{width:1.45, from:0.04, to:0.85},
@@ -617,13 +617,14 @@ function chainsOf(limit){
   const out = [], stack = [[0, -1]];
   while (stack.length){
     const [start, from] = stack.pop();
-    const ids = from >= 0 ? [from] : [], dead = N[start].dead;
+    const st = n => n.dead ? 2 : n.dying ? 1 : 0;  // living, dying (browning bare branch), dead
+    const ids = from >= 0 ? [from] : [], dead = st(N[start]);
     let cur = start;
     for (;;){
       ids.push(cur);
       const n = N[cur];
       let next = -1;
-      for (const c of n.children){ if (!ok(c)) continue; if (c === n.main && N[c].dead === dead) next = c; else stack.push([c, cur]); }
+      for (const c of n.children){ if (!ok(c)) continue; if (c === n.main && st(N[c]) === dead) next = c; else stack.push([c, cur]); }
       if (next < 0) break;
       cur = next;
     }
@@ -631,11 +632,14 @@ function chainsOf(limit){
   }
   return out;
 }
+// a bare juniper branch browns and greys for a few turns before it dies
+const dyingMat = addSway(new THREE.MeshStandardMaterial({color:0x9a8a78, map:bark.map, bumpMap:bark.bump, bumpScale:1.4, roughness:0.9}), 'dying');
+let dyingMesh = null;
 const cutMat = addSway(new THREE.MeshStandardMaterial({color:0xe2cba4, roughness:0.75}), 'cut');
 let cutMesh = null;
 function buildWood(limit){
-  woodMesh = disposeMesh(woodMesh); deadMesh = disposeMesh(deadMesh); cutMesh = disposeMesh(cutMesh);
-  const N = g.nodes, live = [], dead = [], cuts = [];
+  woodMesh = disposeMesh(woodMesh); deadMesh = disposeMesh(deadMesh); cutMesh = disposeMesh(cutMesh); dyingMesh = disposeMesh(dyingMesh);
+  const N = g.nodes, live = [], dead = [], cuts = [], dying = [];
   for (const {ids, dead:isDead} of chainsOf(limit)){
     if (ids.length < 2) continue;
     const pts = ids.map(id => P(N[id]));
@@ -647,10 +651,10 @@ function buildWood(limit){
     const radial = trunk ? 28 : r0 > 0.1 ? 24 : r0 > 0.05 ? 16 : r0 > 0.025 ? 10 : 7;
     const uRep = Math.max(1, Math.round(TAU*r0/0.3));
     const trunkOpt = {knob:0.1, knobF:3.2, ...look.trunk, phase:g.seed%7, density:24, uRep, vScale:1.6};
-    (isDead ? dead : live).push(tubeGeo(pts, rad, radial,
+    (isDead === 2 ? dead : isDead === 1 ? dying : live).push(tubeGeo(pts, rad, radial,
       trunk ? trunkOpt : {knob: r0 > 0.03 ? 0.08 : 0.03, knobF:7, density: r0 > 0.03 ? 18 : 12, uRep, vScale:1.6}));
     // juniper: a strip of stripped, silvered deadwood (shari) spiralling up the trunk with the grain
-    if (trunk && !isDead && look.shari) dead.push(tubeGeo(pts, rad, 10, {...trunkOpt, arc:{a0:(g.seed%11)*0.57, ...look.shari}}));
+    if (trunk && isDead === 0 && look.shari) dead.push(tubeGeo(pts, rad, 10, {...trunkOpt, arc:{a0:(g.seed%11)*0.57, ...look.shari}}));
   }
   // cut ends show pale wood
   for (const n of N){
@@ -664,6 +668,7 @@ function buildWood(limit){
   if (live.length){ woodMesh = new THREE.Mesh(mergeGeometries(live), barkMat); woodMesh.castShadow = woodMesh.receiveShadow = true; scene.add(woodMesh); }
   if (dead.length){ deadMesh = new THREE.Mesh(mergeGeometries(dead), deadMat); deadMesh.castShadow = deadMesh.receiveShadow = true; scene.add(deadMesh); }
   if (cuts.length){ cutMesh = new THREE.Mesh(mergeGeometries(cuts), cutMat); scene.add(cutMesh); }
+  if (dying.length){ dyingMesh = new THREE.Mesh(mergeGeometries(dying), dyingMat); dyingMesh.castShadow = true; scene.add(dyingMesh); }
 }
 // surface roots spreading over the plinth: the nebari of an old bonsai
 function buildRoots(){
@@ -703,7 +708,7 @@ function buildLeaves(startOf){
     if (!n.alive) continue;
     const st = startOf ? startOf(n.id) : -100;
     pad(n, look.pad[0], look.spread[0], s.health, st);
-    for (let k=0;k<2 && n.parent > 0;k++){ n = N[n.parent]; pad(n, look.pad[1], look.spread[1], s.health, startOf ? startOf(n.id) : -100); }
+    for (let k=0;k<(look.back ?? 2) && n.parent > 0;k++){ n = N[n.parent]; pad(n, look.pad[1], look.spread[1], s.health, startOf ? startOf(n.id) : -100); }
     // fruit just behind some tips: a pair of figs in the leaf axils, or a single juniper berry (a fleshy cone)
     const fn = N[s.node].parent > 0 ? N[N[s.node].parent] : null, fr = look.fruit;
     if (fn && fn.alive && hash3(fn.id, 4, 2) < fr.p){
@@ -1024,7 +1029,7 @@ window.addEventListener('keydown', e => {
 });
 
 // ---------- run, saving, interface ----------
-const KEY = 'bonzai.grow.v3';
+const KEY = 'bonzai.grow.v4';  // v4: pick one of three (older saves replay differently, so they are not loaded)
 let g, busy = false, sel = null, active = 0;
 function save(){ store.set(KEY, {seed:g.seed, log:g.log, species:g.species}); }
 function startRun(seed, log=[], species='fig'){
@@ -1187,12 +1192,11 @@ function showOver(){
 
 // only events worth interrupting for; routine results show on the tree itself
 const MSG = {
-  dieback:'A shoot died back', jin:'A bare branch died to deadwood', snap:'A long shoot snapped off', set:'A branch has set; its wire came off',
+  dieback:'A shoot died back', jin:'A bare branch died to deadwood', dying:'A bare branch is dying', snap:'A long shoot snapped off', set:'A branch has set; its wire came off',
   weak:'The tree is weak', last:'Last living shoot', over:'No living shoots left',
 };
 function eventToast(e){
   if (e.type === 'stratum') return toast(`Stratum ${e.k + 1}`);
-  if (e.type === 'cut' && e.jin) return toast('The bare stub died to deadwood');
   if (MSG[e.type]) toast(MSG[e.type]);
 }
 const recent = new Map();

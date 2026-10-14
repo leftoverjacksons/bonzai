@@ -27,7 +27,8 @@ export const GCFG = {
   NATURAL_RUN: 0.6,     // a strong shoot this long may break a side bud by itself
   NATURAL_BREAK: 0.05,  // chance per turn
   BUD_ANGLE: 0.95,      // dormant buds point this far (rad) off the shoot
-  H_BLOCKED: -0.3, H_SHADE: -0.12, H_STARVE: -0.12, H_LEGGY: -0.07, H_HEAL: 0.1,
+  H_BLOCKED: -0.3, H_SHADE: -0.08, H_STARVE: -0.12, H_LEGGY: -0.07, H_HEAL: 0.1,
+  SHADE_GRACE: 2,       // turns in shade before it starts to cost health (shade now counts every turn, day and night)
   DIEBACK_NODES: 3,
   REBUD: 0.5,           // fig: chance a bud wakes behind die-back
   WIRE_RANGE: 2.0,      // a guy wire reaches this far from its tie point to a ring
@@ -60,6 +61,10 @@ GCFG.FOLIAGE_N = 3;      // nodes behind a living tip that carry foliage
 GCFG.JIN = false;        // a branch left with no foliage dies and stays as silver deadwood
 GCFG.TRUNK_BEND = 1;     // how far the starting trunk curves
 GCFG.TRUNK_WAVE = 1;     // how many turns its curve makes
+GCFG.JIN_DELAY = 0;      // turns a bare branch takes to die (it browns meanwhile)
+GCFG.ETIOLATE = false;   // in poor light, shoots stretch and stop branching
+GCFG.TWIG_DROP = 8;      // turns until thin dead twigs (radius under TWIG_R) break off; thicker deadwood stays
+GCFG.TWIG_R = 0.025;
 const BASE = {...GCFG};
 
 // Species: each is a set of overrides on the base settings (the base is the temple fig), plus its own card texts.
@@ -69,8 +74,10 @@ export const SPECIES = {
     cfg:{
       BARE_BUDS:false, JIN:true, REBUD:0, TRUNK_BEND:2.4, TRUNK_WAVE:1.7,
       WIRE_STEP:0.08, WIRE_MAX:1.2, WIRE_FLEX_R:0.07, WIRE_SET:9,
-      YIELD:0.2, MAX_EXT:0.2, APICAL:1.8, NATURAL_BREAK:0.12, NATURAL_RUN:0.4,
-      H_BLOCKED:-0.18, H_STARVE:-0.08, H_SHADE:-0.16, H_HEAL:0.06,
+      // compact and bushy: short segments, slow extension, frequent branching near the tips, a long leafy stretch
+      SEG:0.08, YIELD:0.2, MAX_EXT:0.07, MIN_SHARE:0.03, APICAL:1.8, NATURAL_BREAK:0.2, NATURAL_RUN:0.2, FOLIAGE_N:5, TROPISM:0.07,
+      H_BLOCKED:-0.18, H_STARVE:-0.08, H_SHADE:-0.07, H_HEAL:0.06, SHADE_GRACE:3,
+      JIN_DELAY:3, ETIOLATE:true,
       SAG:0.15, SNAP:2.6,
       DECK:{cut:0.3, pinch:0.3, wire:0.28, root:0.12},
     },
@@ -418,6 +425,7 @@ export function planTurn(g){
   }
   for (const i of info){
     i.ext = (i.ext || 0)*Math.max(0.4, 1 - G.HYDRAULIC*stratumOf(i.n.y));
+    if (G.ETIOLATE && i.L < G.SHADE_L) i.ext = Math.min(G.MAX_EXT*1.3, i.ext*1.3);  // stretching toward light
     i.share = i.ext;
     const d = i.s.d;
     i.blockedAhead = blockedAt(g, i.n.x + d[0]*G.SEG, i.n.y + d[1]*G.SEG, i.n.z + d[2]*G.SEG);
@@ -546,15 +554,20 @@ export function bestBud(g, from, maxBack, avoid=[], fol=null){
   return best;
 }
 // Juniper: living wood that no longer leads to any foliage dies and stays as silver deadwood (jin). Returns how many nodes.
-function killBare(g){
+// It first browns (dying) for JIN_DELAY turns. Called once per turn (tick) and after a cut (no tick).
+function killBare(g, tick=true){
   if (!G.JIN) return 0;
   const live = new Set(g.shoots.map(s => s.node)), has = new Uint8Array(g.nodes.length);
-  let n = 0;
+  let n = 0, started = 0;
   for (let id = g.nodes.length - 1; id >= 0; id--){
     const x = g.nodes[id]; if (!x.alive) continue;
     has[id] = live.has(id) || x.children.some(c => has[c]) ? 1 : 0;
-    if (!has[id] && !x.dead){ x.dead = true; x.bud = null; n++; }
+    if (has[id] || x.dead){ x.dying = 0; continue; }
+    if (!x.dying){ x.dying = 1; x.bud = null; started++; }
+    else if (tick) x.dying++;
+    if (x.dying > G.JIN_DELAY){ x.dead = true; x.deadT = g.turn; x.dying = 0; n++; }
   }
+  if (started) ev(g, 'dying');
   return n;
 }
 function wakeBud(g, from, maxBack, health, fol=null){
@@ -648,8 +661,8 @@ function apply(g, a){
     const removed = removeSubtree(g, a.node);
     const w = wakeBud(g, parent, 3, 0.8, G.BARE_BUDS ? null : foliageSet(g));
     if (w) w.run = 0;
-    const jin = killBare(g);
-    ev(g, 'cut', {removed, woke: w ? 1 : 0, jin});
+    killBare(g, false);
+    ev(g, 'cut', {removed, woke: w ? 1 : 0});
     return true;
   }
   if (card === 'root'){
@@ -676,9 +689,8 @@ export function play(g, a){
   g.events = [];
   if (!apply(g, a)) return false;
   g.log.push(a);
-  g.hand.splice(a.i, 1);
   growTurn(g);
-  if (!g.hand.length) drawHand(g);
+  drawHand(g);  // pick one of three: the other two go, and three new cards come
   return true;
 }
 
@@ -716,10 +728,11 @@ function growTurn(g){
     if (s.carry > G.SEG/G.SLIDE_SPEED) s.carry = G.SEG/G.SLIDE_SPEED;
     s.stone = (s.blocked || s.sliding) ? s.stone + 1 : 0;
     // a strong shoot occasionally breaks a side bud on its own
-    if (!s.blocked && i.ext >= 0.25 && s.run >= G.NATURAL_RUN && R() < G.NATURAL_BREAK){
+    const dim = G.ETIOLATE && i.L < G.SHADE_L;  // a stretching shoot in poor light does not branch
+    if (!s.blocked && i.ext >= G.MAX_EXT*0.83 && s.run >= G.NATURAL_RUN && R() < G.NATURAL_BREAK && !dim){
       let back = s.node; for (let k=0;k<2;k++) back = g.nodes[back].parent;
       const w = wakeBud(g, back, 2, Math.max(0.7, s.health*0.9));
-      if (w){ s.run = Math.min(s.run, 0.3); ev(g, 'branch'); }
+      if (w){ s.run = Math.min(s.run, G.NATURAL_RUN*0.5 + 0.1); ev(g, 'branch'); }
     }
   }
   // health: stone, shade, hunger and legginess hurt; light and food heal
@@ -729,7 +742,8 @@ function growTurn(g){
     if (!g.shoots.includes(s)) continue;
     let dh = 0;
     if (s.blocked && s.stone > G.STONE_GRACE){ dh += G.H_BLOCKED; ev(g, 'blocked', {shoot:s.id}); }
-    if (day && i.L < G.SHADE_L) dh += G.H_SHADE;
+    s.shade = i.L < G.SHADE_L ? (s.shade || 0) + 1 : 0;
+    if (day && s.shade > G.SHADE_GRACE) dh += G.H_SHADE;
     if (day && i.ext < G.MIN_SHARE) dh += G.H_STARVE;
     if (!s.held && s.run > G.LEGGY) dh += G.H_LEGGY;
     if (dh === 0 && day && !s.blocked) dh = G.H_HEAL;
@@ -746,13 +760,20 @@ function growTurn(g){
     if (s.health <= 0){
       // die-back: the last few segments turn to dead wood; a fig often re-buds just behind
       let id = s.node;
-      for (let k=0; k<G.DIEBACK_NODES && id > 2; k++){ const n = g.nodes[id]; if (n.children.some(c => g.nodes[c].alive && !g.nodes[c].dead)) break; n.dead = true; n.bud = null; id = n.parent; }
+      for (let k=0; k<G.DIEBACK_NODES && id > 2; k++){ const n = g.nodes[id]; if (n.children.some(c => g.nodes[c].alive && !g.nodes[c].dead)) break; n.dead = true; n.deadT = g.turn; n.bud = null; id = n.parent; }
       g.shoots = g.shoots.filter(x => x !== s);
       ev(g, 'dieback');
       if (R() < G.REBUD){ const w = wakeBud(g, id, 2, 0.55); if (w) ev(g, 'rebud'); }
     }
   }
   if (killBare(g)) ev(g, 'jin');
+  // thin dead twigs break off after a while; thicker deadwood (jin) stays
+  for (const n of g.nodes){
+    if (!n.alive || !n.dead || n.parent < 0) continue;
+    const p = g.nodes[n.parent];
+    if (p.dead || n.r >= G.TWIG_R || g.turn - (n.deadT ?? -99) < G.TWIG_DROP) continue;
+    const pc = p.cutEnd; removeSubtree(g, n.id); p.cutEnd = pc;  // a twig falling leaves no cut face
+  }
   g.turn++;
   g.maxY = 0; for (const n of g.nodes) if (n.alive && !n.dead && n.y > g.maxY) g.maxY = n.y;
   updateRadii(g);

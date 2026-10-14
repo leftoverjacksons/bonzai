@@ -29,13 +29,16 @@ function carelessMove(g, R){
     const n = targets(g, 'wire')[0]; return {node:n, ring:targets(g, 'wire', 1, n)[0]};
   }) || randomMove(g, R);
 }
-// a gardener's habits, choosing the order: clear trouble first (cut), then wire, then wake buds, pinch last
+// a gardener's habits: pick the card the tree needs most (cut trouble, tame leggy shoots, wake buds on a thin tree)
 function carefulMove(g, R){
   const plan = planTurn(g);
   const info = new Map(plan.info.map(i => [i.s.id, i]));
   const trunkSafe = id => g.nodes[id].y > 0.4 && id > 9;
-  const order = ['cut', 'wire', 'root', 'pinch'];
-  const i = [...g.hand.keys()].sort((a, b) => order.indexOf(g.hand[a]) - order.indexOf(g.hand[b]))[0];
+  // choose the card the tree needs most right now
+  const trouble = g.nodes.some(n => n.alive && n.dead && trunkSafe(n.id)) || plan.info.some(i => (i.blockedAhead && !i.slide) || i.s.health < 0.3);
+  const leggy = g.shoots.some(s => s.run > 0.8);
+  const need = {cut: trouble ? 3 : 0.5, wire: leggy ? 2 : 1, pinch: leggy ? 2.5 : 0.8, root: g.shoots.length < 6 ? 2 : 0.6};
+  const i = [...g.hand.keys()].filter(k => !canDiscard(g, k)).sort((a, b) => need[g.hand[b]] - need[g.hand[a]])[0] ?? 0;
   return actionFor(g, i, card => {
     if (card === 'pinch'){
       const s = [...g.shoots].sort((a,b) => (b.run + (info.get(b.id)?.ext||0)*2) - (a.run + (info.get(a.id)?.ext||0)*2))[0] || g.shoots[0];
