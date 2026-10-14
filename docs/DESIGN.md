@@ -158,6 +158,7 @@ Chosen as the second species because it plays very differently from the fig: the
 | Slow growing, very hardy, needs strong sun. | Growth about two thirds of the fig; smaller health losses from stone and hunger, larger from shade; slower healing. |
 | Stiff, flexible wood that takes wire well; dense, bushy growth. | Less sag, snaps later; more Wire cards; weaker apical dominance and more natural branching. |
 | Scale foliage in flat sprays; reddish, stringy bark; blue, berry-like cones. | Fern-like sprays, blue-green; reddish bark; single blue-grey berries. |
+| Old junipers have twisted trunks: the grain spirals, live veins stand out as ridges, and bonsai keep stripped, bleached deadwood on the trunk (shari) and dead branches (jin). | Starting trunk curves more and twists; ridges and bark grain spiral with it; a silver shari strip spirals up the trunk; the starting tree carries one jin. Deadwood is bleached near-white (2026-10-14). |
 
 Bot results over 150 turns, 12 seeds: careful 13.8 m (fig 21.5 m), 8 of 12 runs ended (fig 2); careless 10.0 m (fig 9.8 m). The careful bot was written for the fig and cuts deep, which the juniper punishes, so its numbers understate what good juniper play can do.
 

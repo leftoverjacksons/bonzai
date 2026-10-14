@@ -278,6 +278,8 @@ function sampleRad(rad, u){ const f = u*(rad.length-1), i = Math.min(rad.length-
 function tubeGeo(pts, rad, radial, o={}){
   const knob = o.knob ?? 0.07, knobF = o.knobF ?? 6, flutes = o.flutes ?? 0, fluteAmp = o.fluteAmp ?? 0;
   const fluteFade = o.fluteFade ?? 0.3, twist = o.twist ?? 0, phase = o.phase ?? 0;
+  // o.arc: only a strip of the surface, {a0, width, from, to}, spiralling with the twist and raised slightly (shari)
+  const arc = o.arc;
   const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
   const L = curve.getLength();
   const seg = Math.max(2, Math.ceil(L*(o.density ?? 16)));
@@ -290,12 +292,13 @@ function tubeGeo(pts, rad, radial, o={}){
     const r = sampleRad(rad, u);
     const fl = fluteAmp*Math.pow(Math.max(0, 1-u/fluteFade), 1.4);
     for (let j=0;j<=radial;j++){
-      const a = j/radial*TAU, ca = Math.cos(a), sa = Math.sin(a);
+      const a = arc ? arc.a0 + twist*u*TAU + (j/radial - 0.5)*arc.width : j/radial*TAU, ca = Math.cos(a), sa = Math.sin(a);
       n.copy(fr.normals[i]).multiplyScalar(ca).addScaledVector(fr.binormals[i], sa).normalize();
       let k = 1 + knob*(vnoise(P.x*knobF+ca*0.8+phase, P.y*knobF, P.z*knobF+sa*0.8)-0.5)*2;
       if (fl > 0) k += fl*Math.pow(Math.max(0, Math.sin(flutes*a + twist*u*TAU + phase)), 2);
+      if (arc) k *= u < arc.from || u > arc.to ? 0.9 : 1.012 - 0.03*Math.pow(Math.abs(j/radial - 0.5)*2, 4);
       pos.push(P.x+n.x*r*k, P.y+n.y*r*k, P.z+n.z*r*k);
-      uv.push(j/radial*(o.uRep ?? 2) + twist*u*0.3, u*L*(o.vScale ?? 0.9));
+      uv.push(j/radial*(o.uRep ?? 2) + twist*u*(o.uRep ?? 2), u*L*(o.vScale ?? 0.9));  // bark grain follows the twist
     }
   }
   for (let i=0;i<seg;i++) for (let j=0;j<radial;j++){ const a = i*(radial+1)+j, b = a+radial+1; idx.push(a, a+1, b, b, a+1, b+1); }
@@ -321,14 +324,14 @@ function tubeGeo(pts, rad, radial, o={}){
       prev = start;
     }
   };
-  if (o.cap !== false){ cap(false); if (o.capStart !== false) cap(true); }
+  if (o.cap !== false && !arc){ cap(false); if (o.capStart !== false) cap(true); }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv,2));
   g.setIndex(idx);
   g.computeVertexNormals();
   const nr = g.attributes.normal;
-  for (let i=0;i<=seg;i++){
+  if (!arc) for (let i=0;i<=seg;i++){
     const a = i*(radial+1), b = a+radial;
     const x = nr.getX(a)+nr.getX(b), y = nr.getY(a)+nr.getY(b), z = nr.getZ(a)+nr.getZ(b), l = Math.hypot(x,y,z)||1;
     nr.setXYZ(a, x/l, y/l, z/l); nr.setXYZ(b, x/l, y/l, z/l);
@@ -488,15 +491,19 @@ const FIG_GREEN = new THREE.Color(0x6f9a3a), FIG_RIPE = new THREE.Color(0x5a2348
 // how each species is drawn: foliage texture and pads, leaf colour, new growth, fruit, bark tint
 const LOOK = {
   fig:{tex:leafTex, pad:[16, 6], spread:[0.12, 0.09], size:1, hue:null, sat:0.55, light:0.17, young:LEAF_YOUNG, youngK:0.5,
-    fruit:{p:0.3, pair:true, from:FIG_GREEN, to:FIG_RIPE, size:1}, bark:new THREE.Color(1, 1, 1)},
+    fruit:{p:0.3, pair:true, from:FIG_GREEN, to:FIG_RIPE, size:1}, bark:new THREE.Color(1, 1, 1),
+    trunk:{flutes:5, fluteAmp:0.3, fluteFade:0.12, twist:0}, shari:null, dead:new THREE.Color(0xcfc8ba)},
   juniper:{tex:juniperTex, pad:[30, 12], spread:[0.11, 0.08], size:0.75, hue:0.40, sat:0.34, light:0.2, young:new THREE.Color(0x8cc46a), youngK:0.3,
-    fruit:{p:0.22, pair:false, from:new THREE.Color(0x6f8a5a), to:new THREE.Color(0x5a6f9e), size:0.7}, bark:new THREE.Color(1.15, 0.82, 0.68)},
+    fruit:{p:0.22, pair:false, from:new THREE.Color(0x6f8a5a), to:new THREE.Color(0x5a6f9e), size:0.7}, bark:new THREE.Color(1.15, 0.82, 0.68),
+    // the trunk twists with deep, spiralling ridges (live veins) along its whole length
+    trunk:{flutes:6, fluteAmp:0.22, fluteFade:1.0, twist:1.3}, shari:{width:1.45, from:0.04, to:0.85},
+    dead:new THREE.Color(1.9, 1.86, 1.8)},  // juniper deadwood bleaches silver-white (brighter than 1 to lift the dark bark texture)
 };
 let look = LOOK.fig;
 function applyLook(){
   look = LOOK[g.species] || LOOK.fig;
   leafMat.map = look.tex; leafDepth.map = look.tex; leafMat.needsUpdate = leafDepth.needsUpdate = true;
-  barkMat.color.copy(look.bark);
+  barkMat.color.copy(look.bark); deadMat.color.copy(look.dead);
 }
 const mixW = (arr, w) => { const c = new THREE.Color(0,0,0); arr.forEach((k,i) => c.add(k.clone().multiplyScalar(w[i]))); return c; };
 let world = {group:null, built:0, beams:[], glow:new THREE.Color(1,1,1), disposables:[]};
@@ -639,9 +646,11 @@ function buildWood(limit){
     if (trunk){ pts[0] = V(pts[0].x, -0.1, pts[0].z); rad[0] *= 1.35; }
     const radial = trunk ? 28 : r0 > 0.1 ? 24 : r0 > 0.05 ? 16 : r0 > 0.025 ? 10 : 7;
     const uRep = Math.max(1, Math.round(TAU*r0/0.3));
+    const trunkOpt = {knob:0.1, knobF:3.2, ...look.trunk, phase:g.seed%7, density:24, uRep, vScale:1.6};
     (isDead ? dead : live).push(tubeGeo(pts, rad, radial,
-      trunk ? {knob:0.1, knobF:3.2, flutes:5, fluteAmp:0.3, fluteFade:0.12, twist:0, phase:g.seed%7, density:24, uRep, vScale:1.6}
-            : {knob: r0 > 0.03 ? 0.08 : 0.03, knobF:7, density: r0 > 0.03 ? 18 : 12, uRep, vScale:1.6}));
+      trunk ? trunkOpt : {knob: r0 > 0.03 ? 0.08 : 0.03, knobF:7, density: r0 > 0.03 ? 18 : 12, uRep, vScale:1.6}));
+    // juniper: a strip of stripped, silvered deadwood (shari) spiralling up the trunk with the grain
+    if (trunk && !isDead && look.shari) dead.push(tubeGeo(pts, rad, 10, {...trunkOpt, arc:{a0:(g.seed%11)*0.57, ...look.shari}}));
   }
   // cut ends show pale wood
   for (const n of N){

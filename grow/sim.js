@@ -54,6 +54,8 @@ const G = GCFG, TAU = Math.PI*2;
 GCFG.BARE_BUDS = true;   // buds on bare wood (behind the foliage) can wake
 GCFG.FOLIAGE_N = 3;      // nodes behind a living tip that carry foliage
 GCFG.JIN = false;        // a branch left with no foliage dies and stays as silver deadwood
+GCFG.TRUNK_BEND = 1;     // how far the starting trunk curves
+GCFG.TRUNK_WAVE = 1;     // how many turns its curve makes
 const BASE = {...GCFG};
 
 // Species: each is a set of overrides on the base settings (the base is the temple fig), plus its own card texts.
@@ -61,7 +63,7 @@ export const SPECIES = {
   fig: {name:'Temple fig', latin:'Ficus religiosa', blurb:'Fast and forgiving. Buds wake behind every cut, so prune hard and it regrows.', cfg:{}},
   juniper: {name:'Juniper', latin:'Juniperus chinensis', blurb:'Slow, tough and stiff. Bare wood never regrows: a branch without foliage dies to silver deadwood. Plan every cut.',
     cfg:{
-      BARE_BUDS:false, JIN:true, REBUD:0,
+      BARE_BUDS:false, JIN:true, REBUD:0, TRUNK_BEND:2.4, TRUNK_WAVE:1.7,
       YIELD:0.2, MAX_EXT:0.2, APICAL:1.8, NATURAL_BREAK:0.12, NATURAL_RUN:0.4,
       H_BLOCKED:-0.18, H_STARVE:-0.08, H_SHADE:-0.16, H_HEAL:0.06,
       SAG:0.15, SNAP:2.6,
@@ -269,12 +271,12 @@ export const shootAt = (g, node) => g.shoots.find(s => s.node === node);
 // An established bonsai: a thick, curving trunk about a metre tall, a few main branches with side shoots.
 function plantBonsai(g){
   const R = mulberry32(hashInt(g.seed, 1));
-  const lean = R()*TAU, bend = 0.12 + R()*0.08;
+  const lean = R()*TAU, bend = (0.12 + R()*0.08)*G.TRUNK_BEND, wave = G.TRUNK_WAVE;
   const trunk = [];
   for (let i=0;i<=9;i++){
     const t = i/9;
-    const x = Math.sin(t*2.8 + lean)*bend*t + Math.cos(lean)*0.05*t;
-    const z = Math.cos(t*2.3 + lean*1.3)*bend*0.8*t - 0.04*t;
+    const x = Math.sin(t*2.8*wave + lean)*bend*t + Math.cos(lean)*0.05*t;
+    const z = Math.cos(t*2.3*wave + lean*1.3)*bend*0.8*t - 0.04*t;
     const prev = trunk.length ? trunk[trunk.length-1] : -1;
     const p = prev >= 0 ? g.nodes[prev] : {x, y:0, z};
     const d = V3.norm([x - p.x, 0.11, z - p.z]);
@@ -298,6 +300,17 @@ function plantBonsai(g){
     az += 2.4 + (R()-.5)*0.4;
   }
   addShoot(g, trunk[9], [0, 1, 0]).run = 0.25;
+  if (G.JIN){
+    // an old juniper carries a jin: a dead branch, bleached silver, twisting up from the trunk
+    const R2 = mulberry32(hashInt(g.seed, 3)), az = lean - Math.PI*0.5 + (R2()-.5);
+    let id = trunk[6], d = V3.norm([Math.cos(az), 0.5, Math.sin(az)]);
+    for (let k=0;k<5;k++){
+      const n = g.nodes[id];
+      d = V3.norm([d[0] + (R2()-.5)*0.5, d[1] + 0.12, d[2] + (R2()-.5)*0.5]);
+      id = addNode(g, n.x + d[0]*0.11, n.y + d[1]*0.11, n.z + d[2]*0.11, id, d, {minR: lerp(0.035, 0.012, k/4), bud:false});
+      g.nodes[id].dead = true;
+    }
+  }
   for (const n of g.nodes) n.born = -40;
 }
 
