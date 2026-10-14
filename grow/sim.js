@@ -1,27 +1,44 @@
-// Bonzai growth prototype v1.
-// The tree grows by itself toward light (space colonization, Runions et al. 2007) inside a procedurally stacked ruin.
-// Pure and deterministic: the same seed and the same number of turns always give the same tree.
+// Bonzai prototype v2: bonsai rules.
+// The tree grows by itself from buds, toward light, with apical dominance and self-shading; left alone it gets leggy,
+// crowded and starved. One forced card per turn (Cut, Pinch, Wire) is the gardener's work.
+// Pure and deterministic: the same seed and the same moves always give the same tree.
+
+// Species: temple fig (Ficus). Vigorous, buds readily behind cuts. Other species will be other settings (docs/DESIGN.md §4.10).
+export const SPECIES = { fig: { name:'Temple fig', latin:'Ficus' } };
 
 export const GCFG = {
-  SEG: 0.13,            // metres per growth step
-  INFL: 0.9,            // how far a light point can attract the tree
-  KILL: 0.22,           // a light point is used up when the tree comes this close
-  ITER_DAY: 3,          // growth steps per turn by day
-  ITER_NIGHT: 1,        // growth steps per turn by night
-  BUDGET: 70,           // most new segments per growth step
-  TROPISM: 0.22,        // upward bias
-  PERSIST: 0.32,        // tendency to keep the current heading
-  MAX_CHILDREN: 3,
-  BRANCH_DOT: 0.88,     // a new shoot must differ this much from existing ones
-  OLD_WOOD_TURNS: 8,    // after this many turns, wood only sprouts if light is strong
-  R_TIP: 0.011,         // radius of a twig tip
-  PIPE: 2.3,            // pipe model exponent
+  SEG: 0.12,            // metres per growth segment
+  R_TIP: 0.012,         // twig radius
+  PIPE: 2.2,            // pipe model exponent for branch thickness
+  YIELD: 0.3,           // metres of growth one fully lit, uncrowded shoot pays for per turn
+  ROOT_ENERGY: 0.12,    // from the roots each turn, day or night
+  NIGHT_LIGHT: 0.08,    // night energy as a fraction of day
+  APICAL: 2.6,          // per metre of height: how strongly higher shoots win energy
+  MAX_EXT: 0.3,         // most one shoot can extend in a turn
+  MIN_SHARE: 0.05,      // a shoot getting less than this by day is starving
+  TROPISM: 0.14,        // upward bias
+  PHOTO: 0.22,          // bend toward open sky
+  CROWD_R: 0.42,        // shoots closer than this, at or above, shade each other
+  CROWD_K: 0.5,
+  SHADE_L: 0.4,         // below this light a shoot is in shade
+  LEGGY: 1.0,           // unbranched run (m) before a shoot weakens and starts to sag
+  SAG: 0.35,
+  SNAP: 1.8,            // unbranched run (m) at which it snaps off
+  NATURAL_RUN: 0.6,     // a strong shoot this long may break a side bud by itself
+  NATURAL_BREAK: 0.05,  // chance per turn
+  BUD_ANGLE: 0.95,      // dormant buds point this far (rad) off the shoot
+  H_BLOCKED: -0.3, H_SHADE: -0.12, H_STARVE: -0.12, H_LEGGY: -0.07, H_HEAL: 0.1,
+  DIEBACK_NODES: 3,
+  REBUD: 0.5,           // fig: chance a bud wakes behind die-back
+  WIRE_RANGE: 2.4, WIRE_PULL: 0.85,
+  QUEUE: 4,             // the current card plus the next three
+  DECK: {cut:0.44, pinch:0.44, wire:0.12},
   REACH: 2.3,           // the tree's horizontal domain (radius)
   HALF: 2.6,            // half-width of a module footprint (inner wall face)
   WALL_T: 0.36,
   CELL: 0.43,           // wall block size
-  SKY_LEN: 7,           // how far light rays look for stone
-  POINTS: 3000,         // light point candidates per 3.2 m of module height
+  SKY_LEN: 2.6,         // light is local: stone further than this does not shade
+  AMBIENT: 0.22,        // bounced light everywhere
   TURNS_PER_DAY: 12,
   START_HOUR: 8,
   SUN_AZ0: 0.25,
@@ -69,40 +86,6 @@ function rayHits(o, ox, oy, oz, dx, dy, dz, maxT){
   return true;
 }
 
-// ---------- world ----------
-export function newWorld(seed){
-  const g = {
-    seed, turn:0, blend:blendFromSeed(seed),
-    modules:[], points:[], pgrid:new Map(),
-    nodes:[], ngrid:new Map(), maxY:0, lastAdded:[], stall:0,
-  };
-  // trunk seedling standing on the plinth
-  const R = mulberry32(hashInt(seed, 1));
-  const lean = R()*TAU;
-  let prev = addNode(g, 0, 0, 0, -1, 0, 1, 0);
-  for (let i=1;i<=4;i++){
-    const t = i/4;
-    prev = addNode(g, Math.cos(lean)*0.08*t*t, i*0.13, Math.sin(lean)*0.08*t*t, prev, 0, 1, 0);
-  }
-  ensureWorld(g);
-  updateRadii(g);
-  g.follow = nodePos(g.nodes[prev]);
-  return g;
-}
-export const nodePos = n => ({x:n.x, y:n.y, z:n.z});
-
-function key(x, y, z, cell){ return Math.floor(x/cell) + ',' + Math.floor(y/cell) + ',' + Math.floor(z/cell); }
-function addNode(g, x, y, z, parent, dx, dy, dz, iter=0){
-  const id = g.nodes.length;
-  const n = {id, x, y, z, parent, children:[], dx, dy, dz, born:g.turn, iter, r:G.R_TIP};
-  g.nodes.push(n);
-  if (parent >= 0) g.nodes[parent].children.push(id);
-  const k = key(x, y, z, G.INFL);
-  let b = g.ngrid.get(k); if (!b) g.ngrid.set(k, b = []); b.push(id);
-  if (y > g.maxY) g.maxY = y;
-  return id;
-}
-
 export function solidsNear(g, y0, y1){
   const out = [];
   for (const m of g.modules) if (m.y1 >= y0 && m.y0 <= y1) for (const o of m.solids) out.push(o);
@@ -128,14 +111,420 @@ export function skyLight(g, x, y, z, solids){
   return open/SKY.length;
 }
 
+// ---------- world ----------
 function ensureWorld(g){
   while (!g.modules.length || g.modules[g.modules.length-1].y1 < g.maxY + 8) addModule(g);
-  // light points for a module are made once the module above exists, so its shade counts
-  for (let i=0;i<g.modules.length-1;i++){
-    const m = g.modules[i];
-    if (!m.pointsMade && m.y0 < g.maxY + 4) makePoints(g, m);
+}
+
+// Rings for wiring, attached where a gardener could really tie to: inner wall faces, around columns,
+// and hanging under beams and slabs. Only rings inside the tree's reach are kept.
+function placeRings(g, m, R){
+  const want = 3 + Math.floor(R()*3);
+  const cands = m.solids.filter(o => ['wall', 'column', 'beam', 'slab'].includes(o.kind));
+  for (let tries=0, made=0; tries<40 && made<want && cands.length; tries++){
+    const o = cands[Math.floor(R()*cands.length)];
+    let x, y, z, kind, nx, nz;
+    if (o.kind === 'column'){
+      const l = Math.hypot(o.cx, o.cz) || 1; nx = -o.cx/l; nz = -o.cz/l;
+      x = o.cx + nx*(o.r + 0.03); z = o.cz + nz*(o.r + 0.03); y = o.cy + (R()-.5)*1.4*o.hy; kind = 'column';
+    } else if (o.kind === 'wall'){
+      const lx = (R()-.5)*1.6*o.hx; y = o.cy + (R()-.5)*1.4*o.hy;
+      const face = lz => [o.cx + lx*o.c + lz*o.s, o.cz - lx*o.s + lz*o.c];
+      const [ax, az] = face(-o.hz), [bx, bz] = face(o.hz);
+      [x, z] = Math.hypot(ax, az) < Math.hypot(bx, bz) ? [ax, az] : [bx, bz];
+      const l = Math.hypot(x, z) || 1; nx = -x/l; nz = -z/l; x += nx*0.04; z += nz*0.04; kind = 'wall';
+    } else {
+      const lx = (R()-.5)*1.6*o.hx, lz = (R()-.5)*1.2*o.hz;
+      x = o.cx + lx*o.c + lz*o.s; z = o.cz - lx*o.s + lz*o.c; y = o.cy - o.hy - 0.16; kind = 'hang'; nx = 0; nz = 0;
+    }
+    if (Math.hypot(x, z) > G.REACH - 0.1 || y < 0.5) continue;
+    if (g.rings.some(r => Math.hypot(r.x-x, r.y-y, r.z-z) < 0.8)) continue;
+    g.rings.push({id:g.rings.length, x, y, z, kind, nx, nz, mod:m.i, used:false, tieY:o.cy - o.hy});
+    made++;
   }
 }
+
+// ---------- the tree ----------
+const V3 = {
+  norm(a){ const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; },
+  cross(a, b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; },
+};
+function budDir(d, phase){
+  const a = Math.abs(d[1]) < 0.9 ? [0,1,0] : [1,0,0];
+  const u = V3.norm(V3.cross(d, a)), v = V3.cross(d, u);
+  const sx = u[0]*Math.cos(phase) + v[0]*Math.sin(phase), sy = u[1]*Math.cos(phase) + v[1]*Math.sin(phase), sz = u[2]*Math.cos(phase) + v[2]*Math.sin(phase);
+  const c = Math.cos(G.BUD_ANGLE), s = Math.sin(G.BUD_ANGLE);
+  return V3.norm([d[0]*c + sx*s, d[1]*c + sy*s + 0.15, d[2]*c + sz*s]);
+}
+function addNode(g, x, y, z, parent, d, o={}){
+  const id = g.nodes.length;
+  g.budPhase += 2.39996;
+  const n = {id, x, y, z, parent, children:[], dx:d[0], dy:d[1], dz:d[2], born:g.turn, iter:o.iter ?? 0, r:G.R_TIP, minR:o.minR ?? 0,
+    alive:true, dead:false, bud: o.bud === false ? null : budDir(d, g.budPhase)};
+  g.nodes.push(n);
+  if (parent >= 0) g.nodes[parent].children.push(id);
+  if (y > g.maxY) g.maxY = y;
+  if (y > g.peak) g.peak = y;
+  return id;
+}
+function addShoot(g, node, d, health=1){
+  const s = {id:g.shootSeq++, node, d:V3.norm(d), health, run:0, carry:0, blocked:false, wire:null, tied:false, share:0, L:1};
+  g.shoots.push(s);
+  return s;
+}
+export const shootById = (g, id) => g.shoots.find(s => s.id === id);
+export const shootAt = (g, node) => g.shoots.find(s => s.node === node);
+
+// An established bonsai: a thick, curving trunk about a metre tall, a few main branches with side shoots.
+function plantBonsai(g){
+  const R = mulberry32(hashInt(g.seed, 1));
+  const lean = R()*TAU, bend = 0.12 + R()*0.08;
+  const trunk = [];
+  for (let i=0;i<=9;i++){
+    const t = i/9;
+    const x = Math.sin(t*2.8 + lean)*bend*t + Math.cos(lean)*0.05*t;
+    const z = Math.cos(t*2.3 + lean*1.3)*bend*0.8*t - 0.04*t;
+    const prev = trunk.length ? trunk[trunk.length-1] : -1;
+    const p = prev >= 0 ? g.nodes[prev] : {x, y:0, z};
+    const d = V3.norm([x - p.x, 0.11, z - p.z]);
+    trunk.push(addNode(g, x, t*1.0, z, prev, d, {minR: lerp(0.21, 0.065, Math.pow(t, 0.8)), bud: i >= 6, iter:0}));
+  }
+  const branch = (from, az, len, up, rStart, depth) => {
+    let id = from, n = g.nodes[from];
+    let d = V3.norm([Math.cos(az), up, Math.sin(az)]);
+    const steps = Math.max(2, Math.round(len/0.13));
+    for (let k=1;k<=steps;k++){
+      d = V3.norm([d[0] + (R()-.5)*0.25, d[1] + (k < steps/2 ? -0.05 : 0.08), d[2] + (R()-.5)*0.25]);
+      n = g.nodes[id];
+      id = addNode(g, n.x + d[0]*0.13, n.y + d[1]*0.13, n.z + d[2]*0.13, id, d, {minR: lerp(rStart, rStart*0.4, k/steps)});
+      if (depth === 0 && k === Math.round(steps*0.6)) branch(id, az + (R()<.5?1:-1)*(0.7 + R()*0.5), len*0.45, 0.25, rStart*0.5, 1);
+    }
+    addShoot(g, id, [d[0], d[1] + 0.3, d[2]]).run = 0.3;
+  };
+  let az = lean + Math.PI*0.5;
+  for (const [ti, len] of [[3, 0.75], [5, 0.62], [7, 0.48]]){
+    branch(trunk[ti], az, len, 0.12, g.nodes[trunk[ti]].minR*0.5, 0);
+    az += 2.4 + (R()-.5)*0.4;
+  }
+  addShoot(g, trunk[9], [0, 1, 0]).run = 0.25;
+  for (const n of g.nodes) n.born = -40;
+}
+
+export function newGame(seed){
+  const g = {
+    seed, turn:0, blend:blendFromSeed(seed), modules:[], rings:[],
+    nodes:[], shoots:[], shootSeq:0, budPhase:0, maxY:0, peak:0,
+    queue:[], drawR:mulberry32(hashInt(seed, 2)), log:[], events:[], over:false,
+    healthSum:0, healthTurns:0, health:1, lastAdded:[],
+  };
+  plantBonsai(g);
+  ensureWorld(g);
+  updateRadii(g);
+  while (g.queue.length < G.QUEUE) g.queue.push(drawCard(g));
+  g.follow = followPoint(g, g.shoots.map(s => s.node));
+  g.health = treeHealth(g);
+  return g;
+}
+export function replayGame(seed, log){
+  const g = newGame(seed);
+  for (const a of log){ if (!play(g, a)) break; }
+  return g;
+}
+
+function skyInfo(g, x, y, z, solids){
+  let open = 0, dx = 0, dy = 0, dz = 0;
+  for (const d of SKY){
+    let hit = false;
+    for (const o of solids){ if (rayHits(o, x, y, z, d[0], d[1], d[2], G.SKY_LEN)){ hit = true; break; } }
+    if (!hit){ open++; dx += d[0]; dy += d[1]; dz += d[2]; }
+  }
+  const l = Math.hypot(dx, dy, dz) || 1;
+  return {L: G.AMBIENT + (1 - G.AMBIENT)*open/SKY.length, dir: open ? [dx/l, dy/l, dz/l] : [0, 1, 0]};
+}
+
+// What each shoot will do this turn: light, crowding, energy share, extension, and whether stone is right ahead.
+export function planTurn(g){
+  const day = isDay(g.turn);
+  const info = g.shoots.map(s => {
+    const n = g.nodes[s.node];
+    const solids = solidsNear(g, n.y - 0.5, n.y + G.SKY_LEN);
+    const sk = skyInfo(g, n.x, n.y, n.z, solids);
+    let crowd = 0;
+    for (const o of g.shoots){ if (o === s) continue; const m = g.nodes[o.node]; if (m.y >= n.y - 0.05 && Math.hypot(m.x-n.x, m.y-n.y, m.z-n.z) < G.CROWD_R) crowd++; }
+    const L = sk.L/(1 + G.CROWD_K*crowd);
+    return {s, n, L, crowd, ldir: sk.dir};
+  });
+  const top = Math.max(0, ...info.map(i => i.n.y));
+  let E = G.ROOT_ENERGY;
+  for (const i of info) E += G.YIELD*i.L*(day ? 1 : G.NIGHT_LIGHT);
+  for (const i of info) i.w = (0.25 + i.L)*Math.exp(G.APICAL*(i.n.y - top));
+  // share energy by weight; a shoot can only use so much, the rest flows to the others
+  let pool = E, open = info.slice();
+  for (let pass=0; pass<4 && open.length && pool > 1e-6; pass++){
+    const W = open.reduce((a, i) => a + i.w, 0) || 1;
+    const next = [];
+    let spent = 0;
+    for (const i of open){
+      const give = pool*i.w/W, room = G.MAX_EXT - (i.ext || 0);
+      const take = Math.min(give, room);
+      i.ext = (i.ext || 0) + take; spent += take;
+      if (take < give - 1e-9) continue;
+      next.push(i);
+    }
+    pool -= spent; open = next;
+    if (spent < 1e-9) break;
+  }
+  for (const i of info){
+    i.ext = i.ext || 0;
+    i.share = i.ext;
+    const d = i.s.d;
+    i.blockedAhead = blockedAt(g, i.n.x + d[0]*G.SEG, i.n.y + d[1]*G.SEG, i.n.z + d[2]*G.SEG);
+  }
+  return {info, E, day};
+}
+
+function ev(g, type, data={}){ g.events.push({type, ...data}); }
+
+function growDir(g, s, ldir){
+  let d = s.d;
+  if (s.wire != null){
+    const r = g.rings[s.wire], n = g.nodes[s.node];
+    const to = V3.norm([r.x - n.x, r.y - n.y, r.z - n.z]);
+    d = V3.norm([d[0]*(1-G.WIRE_PULL) + to[0]*G.WIRE_PULL, d[1]*(1-G.WIRE_PULL) + to[1]*G.WIRE_PULL, d[2]*(1-G.WIRE_PULL) + to[2]*G.WIRE_PULL]);
+    return d;
+  }
+  const sag = !s.tied && s.run > G.LEGGY ? G.SAG*(s.run - G.LEGGY + 0.2) : 0;
+  return V3.norm([d[0] + ldir[0]*G.PHOTO, d[1] + G.TROPISM + ldir[1]*G.PHOTO*0.5 - sag, d[2] + ldir[2]*G.PHOTO]);
+}
+
+function removeSubtree(g, id){
+  const cut = [], stack = [id];
+  while (stack.length){ const k = stack.pop(); const n = g.nodes[k]; if (!n.alive) continue; cut.push(k); n.alive = false; for (const c of n.children) stack.push(c); }
+  const parent = g.nodes[g.nodes[id].parent];
+  if (parent) parent.children = parent.children.filter(c => c !== id);
+  const set = new Set(cut);
+  g.shoots = g.shoots.filter(s => !set.has(s.node));
+  for (const r of g.rings) if (r.used !== false && set.has(r.usedNode)) r.used = false;
+  return cut.length;
+}
+// the best dormant bud on this node or the few just behind it (read-only, used for previews too)
+export function bestBud(g, from, maxBack, avoid=[]){
+  let id = from, best = null, bs = -1e9;
+  for (let k=0; k<=maxBack && id >= 0; k++){
+    const n = g.nodes[id];
+    if (n.bud && n.alive && !n.dead && !shootAt(g, id) && !avoid.includes(id)){
+      const b = n.bud;
+      if (!blockedAt(g, n.x + b[0]*G.SEG, n.y + b[1]*G.SEG, n.z + b[2]*G.SEG)){
+        const sc = b[1] + n.y*0.05;
+        if (sc > bs){ bs = sc; best = n; }
+      }
+    }
+    id = n.parent;
+  }
+  return best;
+}
+function wakeBud(g, from, maxBack, health){
+  const best = bestBud(g, from, maxBack);
+  if (!best) return null;
+  const s = addShoot(g, best.id, best.bud, health);
+  best.bud = null;
+  return s;
+}
+// what a pinch or cut would do, without doing it
+export function previewAction(g, card, target){
+  if (card === 'pinch'){
+    const s = shootById(g, target); if (!s) return null;
+    const a = bestBud(g, s.node, 3), b = a ? bestBud(g, s.node, 3, [a.id]) : null;
+    return {removed:[], buds:[a, b].filter(Boolean)};
+  }
+  if (card === 'cut'){
+    const removed = [], stack = [target];
+    while (stack.length){ const k = stack.pop(); const n = g.nodes[k]; if (!n.alive) continue; removed.push(k); for (const c of n.children) stack.push(c); }
+    const bud = bestBud(g, g.nodes[target].parent, 3);
+    return {removed, buds: bud ? [bud] : []};
+  }
+  return null;
+}
+
+// ---------- cards ----------
+export const CARDS = {
+  pinch: {name:'Pinch', text:'Stop a shoot. Up to two buds just behind it wake as short shoots: a denser, more compact pad.'},
+  cut:   {name:'Cut', text:'Cut a branch anywhere. Everything beyond the cut is removed; a dormant bud just behind it wakes.'},
+  wire:  {name:'Wire', text:'Wire a shoot to an iron ring. It grows toward the ring and will not sag; once tied it climbs on.'},
+};
+function drawCard(g){
+  const r = g.drawR();
+  let acc = 0;
+  for (const [k, w] of Object.entries(G.DECK)){ acc += w; if (r < acc) return k; }
+  return 'cut';
+}
+export function targets(g, card, step=0, first=null){
+  if (card === 'pinch') return g.shoots.map(s => s.id);
+  if (card === 'cut') return g.nodes.filter(n => n.alive && n.id > 2).map(n => n.id);
+  if (card === 'wire'){
+    if (step === 0) return g.shoots.filter(s => s.wire == null && targets(g, 'wire', 1, s.id).length).map(s => s.id);
+    const s = shootById(g, first); if (!s) return [];
+    const n = g.nodes[s.node];
+    return g.rings.filter(r => !r.used && Math.hypot(r.x-n.x, r.y-n.y, r.z-n.z) <= G.WIRE_RANGE && r.y > n.y - 0.6).map(r => r.id);
+  }
+  return [];
+}
+export const canPass = g => targets(g, g.queue[0]).length === 0;
+
+function apply(g, a){
+  const card = g.queue[0];
+  if (a.pass) return canPass(g);
+  if (a.card !== card) return false;
+  if (card === 'pinch'){
+    const s = shootById(g, a.shoot); if (!s) return false;
+    g.shoots = g.shoots.filter(x => x !== s);
+    let woke = 0, from = s.node;
+    for (let k=0; k<2; k++){ const w = wakeBud(g, from, 3, Math.max(0.65, s.health)); if (w){ woke++; w.run = 0; } }
+    ev(g, 'pinch', {woke});
+    return true;
+  }
+  if (card === 'cut'){
+    if (!targets(g, 'cut').includes(a.node)) return false;
+    const parent = g.nodes[a.node].parent;
+    const removed = removeSubtree(g, a.node);
+    const w = wakeBud(g, parent, 3, 0.8);
+    if (w) w.run = 0;
+    ev(g, 'cut', {removed, woke: w ? 1 : 0});
+    return true;
+  }
+  if (card === 'wire'){
+    if (!targets(g, 'wire').includes(a.shoot) || !targets(g, 'wire', 1, a.shoot).includes(a.ring)) return false;
+    const s = shootById(g, a.shoot); s.wire = a.ring; s.tied = false;
+    g.rings[a.ring].used = true; g.rings[a.ring].usedNode = s.node;
+    ev(g, 'wire');
+    return true;
+  }
+  return false;
+}
+
+// One move: play the forced card, then the tree grows for a turn.
+export function play(g, a){
+  if (g.over) return false;
+  g.events = [];
+  if (!apply(g, a)) return false;
+  g.log.push(a);
+  growTurn(g);
+  g.queue.shift();
+  while (g.queue.length < G.QUEUE) g.queue.push(drawCard(g));
+  return true;
+}
+
+// ---------- growth turn ----------
+function growTurn(g){
+  const plan = planTurn(g);
+  const R = mulberry32(hashInt(g.seed, 700 + g.turn));
+  const added = [];
+  for (const i of plan.info){
+    const s = i.s;
+    if (!g.shoots.includes(s)) continue;
+    s.L = i.L; s.share = i.share; s.blocked = false;
+    s.carry += i.ext;
+    let k = 0;
+    while (s.carry >= G.SEG){
+      const n = g.nodes[s.node];
+      const d = growDir(g, s, i.ldir);
+      const x = n.x + d[0]*G.SEG, y = n.y + d[1]*G.SEG, z = n.z + d[2]*G.SEG;
+      if (blockedAt(g, x, y, z) || blockedAt(g, n.x + d[0]*G.SEG*0.5, n.y + d[1]*G.SEG*0.5, n.z + d[2]*G.SEG*0.5)){
+        s.blocked = true; s.carry = 0; break;
+      }
+      s.carry -= G.SEG;
+      const id = addNode(g, x, y, z, s.node, d, {iter:k++});
+      added.push(id);
+      s.node = id; s.d = s.wire != null ? s.d : d; s.run += G.SEG;
+      if (s.wire != null){
+        const r = g.rings[s.wire];
+        r.usedNode = id;
+        if (Math.hypot(r.x - x, r.y - y, r.z - z) < 0.28){
+          s.wire = null; s.tied = true; s.run = 0; s.d = V3.norm([s.d[0]*0.3, 1, s.d[2]*0.3]);
+          s.health = Math.min(1, s.health + 0.3);
+          ev(g, 'tied', {shoot:s.id});
+        }
+      }
+    }
+    if (s.carry > G.SEG) s.carry = G.SEG;
+    // a strong shoot occasionally breaks a side bud on its own
+    if (!s.blocked && i.ext >= 0.25 && s.run >= G.NATURAL_RUN && R() < G.NATURAL_BREAK){
+      let back = s.node; for (let k=0;k<2;k++) back = g.nodes[back].parent;
+      const w = wakeBud(g, back, 2, Math.max(0.7, s.health*0.9));
+      if (w){ s.run = Math.min(s.run, 0.3); ev(g, 'branch'); }
+    }
+  }
+  // health: stone, shade, hunger and legginess hurt; light and food heal
+  const day = plan.day;
+  for (const i of plan.info){
+    const s = i.s;
+    if (!g.shoots.includes(s)) continue;
+    let dh = 0;
+    if (s.blocked){ dh += G.H_BLOCKED; ev(g, 'blocked', {shoot:s.id}); }
+    if (day && i.L < G.SHADE_L) dh += G.H_SHADE;
+    if (day && i.ext < G.MIN_SHARE) dh += G.H_STARVE;
+    if (!s.tied && s.wire == null && s.run > G.LEGGY) dh += G.H_LEGGY;
+    if (dh === 0 && day) dh = G.H_HEAL;
+    s.health = Math.max(0, Math.min(1, s.health + dh));
+    if (!s.tied && s.wire == null && s.run > G.SNAP){
+      // the unbranched run breaks off at its base
+      let id = s.node, len = 0;
+      while (len < s.run - 0.05 && g.nodes[id].parent >= 0){ id = g.nodes[id].parent; len += G.SEG; }
+      const child = g.nodes[id].children.find(c => isAncestor(g, c, s.node)) ?? s.node;
+      removeSubtree(g, child);
+      ev(g, 'snap');
+      continue;
+    }
+    if (s.health <= 0){
+      // die-back: the last few segments turn to dead wood; a fig often re-buds just behind
+      let id = s.node;
+      for (let k=0; k<G.DIEBACK_NODES && id > 2; k++){ const n = g.nodes[id]; if (n.children.some(c => g.nodes[c].alive && !g.nodes[c].dead)) break; n.dead = true; n.bud = null; id = n.parent; }
+      g.shoots = g.shoots.filter(x => x !== s);
+      ev(g, 'dieback');
+      if (R() < G.REBUD){ const w = wakeBud(g, id, 2, 0.55); if (w) ev(g, 'rebud'); }
+    }
+  }
+  g.turn++;
+  g.maxY = 0; for (const n of g.nodes) if (n.alive && !n.dead && n.y > g.maxY) g.maxY = n.y;
+  updateRadii(g);
+  ensureWorld(g);
+  g.lastAdded = added;
+  g.health = treeHealth(g);
+  g.healthSum += g.health; g.healthTurns++;
+  g.follow = followPoint(g, g.shoots.map(s => s.node));
+  if (!g.shoots.length){ g.over = true; ev(g, 'over'); }
+  else if (g.health < 0.3) ev(g, 'weak');
+}
+function isAncestor(g, a, b){ let id = b; while (id >= 0){ if (id === a) return true; id = g.nodes[id].parent; } return false; }
+function followPoint(g, ids){
+  const ns = ids.map(id => g.nodes[id]).filter(n => n && n.alive);
+  if (!ns.length) return g.follow || {x:0, y:0.6, z:0};
+  const ys = ns.map(n => n.y).sort((a,b) => b-a), cut = ys[Math.floor(ys.length*0.6)];
+  let x=0, y=0, z=0, k=0;
+  for (const n of ns) if (n.y >= cut){ x += n.x; y += n.y; z += n.z; k++; }
+  return {x:x/k, y:y/k, z:z/k};
+}
+export function treeHealth(g){
+  if (!g.shoots.length) return 0;
+  const mean = g.shoots.reduce((a, s) => a + s.health, 0)/g.shoots.length;
+  return mean*Math.min(1, g.shoots.length/5);
+}
+export const avgHealth = g => g.healthTurns ? g.healthSum/g.healthTurns : g.health;
+export const score = g => Math.round(g.peak*100*avgHealth(g));
+
+export function updateRadii(g){
+  const N = g.nodes;
+  for (let i=N.length-1; i>=0; i--){
+    const n = N[i];
+    if (!n.alive) continue;
+    const kids = n.children.filter(c => N[c].alive);
+    if (!kids.length){ n.r = Math.max(G.R_TIP, n.minR); continue; }
+    let s = 0; for (const c of kids) s += Math.pow(N[c].r, G.PIPE);
+    n.r = Math.max(Math.pow(s, 1/G.PIPE), n.minR);
+  }
+}
+export const heightM = g => +g.maxY.toFixed(2);
+const lerp = (a, b, t) => a + (b - a)*t;
 
 function addModule(g){
   const i = g.modules.length;
@@ -146,7 +535,7 @@ function addModule(g){
   else if (i % 2 === 1) type = R() < 0.55 ? 'chamber' : 'tower';
   else type = R() < 0.65 ? 'terrace' : 'court';
   const style = pickStyle(g.blend, R());
-  const m = {i, type, style, y0, y1:y0, solids:[], vis:{blocks:[], balusters:[], glow:[], vines:[], windows:[]}, holes:[], pointsMade:false};
+  const m = {i, type, style, y0, y1:y0, solids:[], vis:{blocks:[], balusters:[], glow:[], vines:[], windows:[]}, holes:[]};
   // every upper module stands on a floor with an opening for the tree, unless the one below has a ceiling,
   // and on four corner piers, so the ruin reads as one structure
   const below = g.modules[i-1];
@@ -164,6 +553,7 @@ function addModule(g){
   if (i === 0){
     m.solids.push(solid('plinth', 0, -0.175, 0, 0.7, 0.175, 0.7), solid('plinth', 0, -0.55, 0, 1.0, 0.2, 1.0));
   }
+  placeRings(g, m, R);
   g.modules.push(m);
 }
 
@@ -332,131 +722,3 @@ const GEN = {
   },
 };
 
-function makePoints(g, m){
-  m.pointsMade = true;
-  const R = mulberry32(hashInt(g.seed, 900 + m.i));
-  const y0 = Math.max(0.15, m.y0 + 0.1), y1 = m.y1 - 0.05;
-  const solids = solidsNear(g, y0 - 1, y1 + G.SKY_LEN);
-  const local = solidsNear(g, y0 - 0.5, y1 + 1.2);
-  const n = Math.round(G.POINTS*(y1 - y0)/3.2);
-  for (let i=0;i<n;i++){
-    const r = G.REACH*Math.sqrt(R()), a = R()*TAU;
-    const x = Math.cos(a)*r, z = Math.sin(a)*r, y = y0 + R()*(y1 - y0);
-    if (local.some(o => insideSolid(o, x, y, z, 0.12))) continue;
-    const L = skyLight(g, x, y, z, solids);
-    if (R() > 0.03 + 0.95*Math.pow(L, 1.6)) continue;
-    addPoint(g, x, y, z, L);
-  }
-  // light pours down through every opening in a floor or ceiling: fill the shaft beneath it
-  const above = g.modules[m.i+1];
-  for (const h of [...m.holes, ...(above ? above.holes : [])]){
-    const area = (h.x1 - h.x0)*(h.z1 - h.z0);
-    for (let i=0; i<Math.round(160*area); i++){
-      const x = lerp(h.x0 + 0.08, h.x1 - 0.08, R()), z = lerp(h.z0 + 0.08, h.z1 - 0.08, R());
-      const y = h.y - 1.6 + R()*2.1;
-      if (y < 0.15 || Math.hypot(x, z) > G.REACH) continue;
-      if (local.some(o => insideSolid(o, x, y, z, 0.1))) continue;
-      addPoint(g, x, y, z, 1);
-    }
-  }
-}
-const lerp = (a, b, t) => a + (b - a)*t;
-function addPoint(g, x, y, z, L){
-  const p = {x, y, z, alive:true, L};
-  g.points.push(p);
-  const k = key(x, y, z, G.INFL);
-  let b = g.pgrid.get(k); if (!b) g.pgrid.set(k, b = []); b.push(p);
-}
-
-// ---------- growth ----------
-function nearestNode(g, p){
-  const cx = Math.floor(p.x/G.INFL), cy = Math.floor(p.y/G.INFL), cz = Math.floor(p.z/G.INFL);
-  let best = -1, bd = G.INFL*G.INFL;
-  for (let ix=cx-1; ix<=cx+1; ix++) for (let iy=cy-1; iy<=cy+1; iy++) for (let iz=cz-1; iz<=cz+1; iz++){
-    const b = g.ngrid.get(ix + ',' + iy + ',' + iz); if (!b) continue;
-    for (const id of b){ const n = g.nodes[id]; const d = (n.x-p.x)**2 + (n.y-p.y)**2 + (n.z-p.z)**2; if (d < bd){ bd = d; best = id; } }
-  }
-  return best;
-}
-function killPoints(g, n){
-  const cx = Math.floor(n.x/G.INFL), cy = Math.floor(n.y/G.INFL), cz = Math.floor(n.z/G.INFL), k2 = G.KILL*G.KILL;
-  for (let ix=cx-1; ix<=cx+1; ix++) for (let iy=cy-1; iy<=cy+1; iy++) for (let iz=cz-1; iz<=cz+1; iz++){
-    const b = g.pgrid.get(ix + ',' + iy + ',' + iz); if (!b) continue;
-    for (const p of b) if (p.alive && (p.x-n.x)**2 + (p.y-n.y)**2 + (p.z-n.z)**2 < k2) p.alive = false;
-  }
-}
-
-function step(g, iter){
-  const acc = new Map();
-  const reach = g.maxY + G.INFL + 0.05;
-  for (const p of g.points){
-    if (!p.alive || p.y > reach) continue;
-    const id = nearestNode(g, p); if (id < 0) continue;
-    const n = g.nodes[id];
-    const dx = p.x-n.x, dy = p.y-n.y, dz = p.z-n.z, l = Math.hypot(dx,dy,dz) || 1;
-    let a = acc.get(id); if (!a) acc.set(id, a = {x:0, y:0, z:0, k:0, L:0});
-    a.x += dx/l; a.y += dy/l; a.z += dz/l; a.k++; a.L += p.L;
-  }
-  const cands = [...acc.entries()].sort((A, B) => B[1].k - A[1].k || A[0] - B[0]).slice(0, G.BUDGET);
-  const added = [];
-  for (const [id, a] of cands){
-    const n = g.nodes[id];
-    if (n.children.length >= G.MAX_CHILDREN) continue;
-    if (n.children.length && g.turn - n.born > G.OLD_WOOD_TURNS && a.k < 4) continue;
-    let dx = a.x/a.k + n.dx*G.PERSIST, dy = a.y/a.k + n.dy*G.PERSIST + G.TROPISM, dz = a.z/a.k + n.dz*G.PERSIST;
-    let l = Math.hypot(dx,dy,dz) || 1; dx /= l; dy /= l; dz /= l;
-    if (n.children.some(c => { const m = g.nodes[c]; return m.dx*dx + m.dy*dy + m.dz*dz > G.BRANCH_DOT; })) continue;
-    let x = n.x + dx*G.SEG, y = n.y + dy*G.SEG, z = n.z + dz*G.SEG;
-    if (blockedAt(g, x, y, z) || blockedAt(g, n.x + dx*G.SEG*0.5, n.y + dy*G.SEG*0.5, n.z + dz*G.SEG*0.5)){
-      // try once to slide along the obstacle, toward the side with more light
-      const sx = dx - dy*0.0, sy = dy*0.2, sz = dz; l = Math.hypot(sx, sy, sz) || 1;
-      x = n.x + sx/l*G.SEG; y = n.y + sy/l*G.SEG; z = n.z + sz/l*G.SEG;
-      if (blockedAt(g, x, y, z)) continue;
-      dx = sx/l; dy = sy/l; dz = sz/l;
-    }
-    const nid = addNode(g, x, y, z, id, dx, dy, dz, iter);
-    added.push(nid);
-  }
-  for (const id of added) killPoints(g, g.nodes[id]);
-  return added;
-}
-
-export function updateRadii(g){
-  const N = g.nodes;
-  for (let i=N.length-1; i>=0; i--){
-    const n = N[i];
-    if (!n.children.length){ n.r = G.R_TIP; continue; }
-    let s = 0; for (const c of n.children) s += Math.pow(N[c].r, G.PIPE);
-    n.r = Math.pow(s, 1/G.PIPE);
-  }
-  // a little extra girth at the base, like a bonsai's root flare
-  for (let i=0;i<Math.min(5, N.length);i++) N[i].r = Math.max(N[i].r, 0.05) * (1 + (4-i)*0.08);
-}
-
-// One turn: the whole tree grows by itself for a few steps (fewer at night).
-export function growTurn(g){
-  const iters = isDay(g.turn) ? G.ITER_DAY : G.ITER_NIGHT;
-  g.turn++;
-  const added = [];
-  for (let k=0; k<iters; k++){
-    const a = step(g, k);
-    added.push(...a);
-    if (!a.length) break;
-    ensureWorld(g);
-  }
-  updateRadii(g);
-  ensureWorld(g);
-  g.lastAdded = added;
-  g.stall = added.length ? 0 : g.stall + 1;
-  if (added.length){
-    const ys = added.map(id => g.nodes[id].y).sort((a,b) => b-a);
-    const cut = ys[Math.floor(ys.length*0.3)];
-    let x=0, y=0, z=0, k=0;
-    for (const id of added){ const n = g.nodes[id]; if (n.y >= cut){ x += n.x; y += n.y; z += n.z; k++; } }
-    g.follow = {x:x/k, y:y/k, z:z/k};
-  }
-  return added;
-}
-
-export function replayWorld(seed, turns){ const g = newWorld(seed); for (let i=0;i<turns;i++) growTurn(g); return g; }
-export const heightM = g => +g.maxY.toFixed(2);

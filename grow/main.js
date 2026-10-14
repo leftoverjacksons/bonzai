@@ -1,12 +1,12 @@
-// Bonzai growth prototype v1: renders grow/sim.js. The whole tree grows, animated, each turn;
-// the camera follows the growth, and you can tap a branch and swipe to travel along it.
+// Bonzai prototype v2: renders grow/sim.js. One forced card per turn (Cut, Pinch, Wire), then the whole tree grows, animated.
+// The camera follows the growth; tap a branch to ride it, swipe to travel along it.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { GCFG, STYLES, newWorld, replayWorld, growTurn, updateRadii, hourOf, dayOf, isDay, mulberry32, hashInt } from './sim.js';
+import { GCFG, STYLES, CARDS, newGame, replayGame, play, planTurn, targets, canPass, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt } from './sim.js';
 
 const $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
@@ -485,74 +485,92 @@ function buildModule(m){
 function syncWorld(){ while (world.built < g.modules.length) buildModule(g.modules[world.built++]); }
 
 // ---------- tree ----------
-let woodMesh = null, leafMesh = null, blossomMesh = null, newSegs = null, anim = null;
+const deadMat = new THREE.MeshStandardMaterial({color:0xcfc8ba, map:bark.map, bumpMap:bark.bump, bumpScale:1.2, roughness:0.85});
+let woodMesh = null, deadMesh = null, rootMesh = null, leafMesh = null, blossomMesh = null, newSegs = null, anim = null;
 const segGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); segGeo.translate(0, 0.5, 0);
 const leafGeo = new THREE.PlaneGeometry(0.085, 0.15); leafGeo.translate(0, 0.075, 0);
 const P = n => V(n.x, n.y, n.z);
+const disposeMesh = m => { if (m){ scene.remove(m); m.geometry.dispose(); } return null; };
 
+// living wood continues along its biggest living child; dead wood starts its own chain
 function chainsOf(limit){
-  const N = g.nodes, size = new Array(limit).fill(1);
-  for (let i=limit-1;i>0;i--) if (N[i].parent >= 0) size[N[i].parent] += size[i];
+  const N = g.nodes, lim = Math.min(limit, N.length), size = new Array(N.length).fill(0);
+  for (let i=lim-1;i>=0;i--){ const n = N[i]; if (!n.alive) continue; size[i] += 1; if (n.parent >= 0) size[n.parent] += size[i]; }
+  const ok = c => c < lim && N[c].alive;
   const out = [], stack = [[0, -1]];
   while (stack.length){
     const [start, from] = stack.pop();
-    const ids = from >= 0 ? [from] : [];
+    const ids = from >= 0 ? [from] : [], dead = N[start].dead;
     let cur = start;
     for (;;){
       ids.push(cur);
-      const ch = N[cur].children.filter(c => c < limit).sort((a,b) => size[b]-size[a]);
-      if (!ch.length) break;
-      for (let i=1;i<ch.length;i++) stack.push([ch[i], cur]);
-      cur = ch[0];
+      const ch = N[cur].children.filter(ok).sort((a,b) => size[b]-size[a]);
+      let next = -1;
+      for (const c of ch){ if (next < 0 && N[c].dead === dead) next = c; else stack.push([c, cur]); }
+      if (next < 0) break;
+      cur = next;
     }
-    out.push(ids);
+    out.push({ids, dead});
   }
-  return {chains:out, size};
+  return out;
 }
 function buildWood(limit){
-  if (woodMesh){ scene.remove(woodMesh); woodMesh.geometry.dispose(); woodMesh = null; }
-  const N = g.nodes, {chains} = chainsOf(limit), geos = [];
-  for (const ids of chains){
+  woodMesh = disposeMesh(woodMesh); deadMesh = disposeMesh(deadMesh);
+  const N = g.nodes, live = [], dead = [];
+  for (const {ids, dead:isDead} of chainsOf(limit)){
     if (ids.length < 2) continue;
     const pts = ids.map(id => P(N[id]));
-    const rad = ids.map((id, i) => i === 0 && ids[0] !== 0 ? Math.min(N[id].r, N[ids[1]].r*1.25) : N[id].r);
-    const r0 = rad[0], trunk = ids[0] === 0;
-    if (trunk){ pts[0] = V(pts[0].x, -0.08, pts[0].z); rad[0] *= 1.6; }
-    geos.push(tubeGeo(pts, rad, trunk ? 22 : r0 > 0.06 ? 12 : r0 > 0.025 ? 7 : 5,
-      trunk ? {knob:0.1, knobF:3.2, flutes:5, fluteAmp:0.45, fluteFade:0.12, twist:0.18, phase:g.seed%7, density:22}
-            : {knob: r0 > 0.03 ? 0.08 : 0, knobF:7, density: r0 > 0.03 ? 14 : 8}));
+    const rad = ids.map((id, i) => i === 0 && ids[0] !== 0 ? Math.min(N[id].r, N[ids[1]].r*1.3) : N[id].r);
+    const trunk = ids[0] === 0, r0 = rad[0];
+    if (trunk){ pts[0] = V(pts[0].x, -0.1, pts[0].z); rad[0] *= 1.35; }
+    (isDead ? dead : live).push(tubeGeo(pts, rad, trunk ? 26 : r0 > 0.06 ? 14 : r0 > 0.025 ? 8 : 5,
+      trunk ? {knob:0.12, knobF:3.2, flutes:6, fluteAmp:0.5, fluteFade:0.16, twist:0.2, phase:g.seed%7, density:24}
+            : {knob: r0 > 0.03 ? 0.09 : 0.03, knobF:7, density: r0 > 0.03 ? 16 : 10}));
   }
-  if (!geos.length) return;
-  woodMesh = new THREE.Mesh(mergeGeometries(geos), barkMat);
-  woodMesh.castShadow = woodMesh.receiveShadow = true;
-  scene.add(woodMesh);
+  if (live.length){ woodMesh = new THREE.Mesh(mergeGeometries(live), barkMat); woodMesh.castShadow = woodMesh.receiveShadow = true; scene.add(woodMesh); }
+  if (dead.length){ deadMesh = new THREE.Mesh(mergeGeometries(dead), deadMat); deadMesh.castShadow = deadMesh.receiveShadow = true; scene.add(deadMesh); }
 }
-// foliage on twig tips and the wood just behind them; each node's leaves are seeded by its id so they stay put
+// surface roots spreading over the plinth: the nebari of an old bonsai
+function buildRoots(){
+  rootMesh = disposeMesh(rootMesh);
+  const R = mulberry32(hashInt(g.seed, 13)), geos = [], b = g.nodes[0];
+  for (let k=0;k<7;k++){
+    const az = k/7*TAU + R()*0.4, c = Math.cos(az), s = Math.sin(az), e = 0.7/Math.max(Math.abs(c), Math.abs(s));
+    const pts = [V(b.x + c*0.08, 0.2, b.z + s*0.08), V(c*0.3, 0.06, s*0.3), V(c*0.55, 0.03, s*0.55), V(c*(e-0.03), 0.02, s*(e-0.03))];
+    const rad = [0.12, 0.08, 0.055, 0.04];
+    if (k%2 === 0){ pts.push(V(c*(e+0.05), -0.1, s*(e+0.05)), V(c*(e+0.07), -0.33, s*(e+0.07)), V(c*(e+0.3), -0.42, s*(e+0.3)), V(c*(e+0.4), -0.78, s*(e+0.4))); rad.push(0.035, 0.03, 0.025, 0.02); }
+    else { pts.push(V(c*(e+0.02), -0.05, s*(e+0.02))); rad.push(0.02); }
+    geos.push(tubeGeo(pts, rad, 10, {knob:0.14, knobF:5}));
+  }
+  rootMesh = new THREE.Mesh(mergeGeometries(geos), barkMat); rootMesh.castShadow = rootMesh.receiveShadow = true; scene.add(rootMesh);
+}
+// foliage pads: a full pad at every living shoot, thinner leaves on the twigs just behind it; seeded per node so pads stay put
 function buildLeaves(startOf){
-  if (leafMesh){ scene.remove(leafMesh); leafMesh.dispose(); leafMesh = null; }
-  if (blossomMesh){ scene.remove(blossomMesh); blossomMesh.dispose(); blossomMesh = null; }
-  const N = g.nodes, dtt = new Array(N.length).fill(99);
-  for (let i=N.length-1;i>=0;i--){ const n = N[i]; if (!n.children.length) dtt[i] = 0; if (n.parent >= 0) dtt[n.parent] = Math.min(dtt[n.parent], dtt[i] + 1); }
-  const hue = 0.36*g.blend[0] + 0.27*g.blend[1] + 0.22*g.blend[2];
+  leafMesh = disposeMesh(leafMesh); blossomMesh = disposeMesh(blossomMesh);
+  const N = g.nodes, hue = 0.36*g.blend[0] + 0.27*g.blend[1] + 0.22*g.blend[2];
   const mats = [], starts = [], cols = [], blos = [];
   const d = new THREE.Object3D(), c = new THREE.Color();
-  for (const n of N){
-    if (dtt[n.id] > 3 || n.y < 0.25) continue;
+  const pad = (n, count, spread, health, st) => {
     const R = mulberry32(hashInt(g.seed, n.id, 5));
-    const count = dtt[n.id] === 0 ? 12 : dtt[n.id] === 1 ? 6 : 3, spread = dtt[n.id] === 0 ? 0.1 : 0.07;
-    const age = g.turn - n.born;
-    const st = startOf ? startOf(n.id) : -100;
     for (let k=0;k<count;k++){
-      d.position.set(n.x + (R()-.5)*spread*2, n.y + (R()-.3)*spread*1.4, n.z + (R()-.5)*spread*2);
-      d.lookAt(d.position.clone().add(V((R()-.5)*2, 0.6 + R(), (R()-.5)*2)));
-      d.rotateZ(R()*TAU); d.scale.setScalar(0.75 + R()*0.5); d.updateMatrix();
+      d.position.set(n.x + (R()-.5)*spread*2, n.y + (R()-.25)*spread*1.1, n.z + (R()-.5)*spread*2);
+      d.lookAt(d.position.clone().add(V((R()-.5)*2, 0.7 + R(), (R()-.5)*2)));
+      d.rotateZ(R()*TAU); d.scale.setScalar(0.8 + R()*0.5); d.updateMatrix();
       mats.push(d.matrix.clone()); starts.push(st);
-      c.setHSL(hue + (R()-.5)*0.05, 0.5 + R()*0.15, clamp(0.16 + R()*0.1 + (age < 3 ? 0.08 : 0), 0, 0.5));
+      c.setHSL(lerp(0.13, hue, health) + (R()-.5)*0.04, lerp(0.6, 0.55, health), clamp(0.17 + R()*0.1, 0, 0.5));
       cols.push(c.clone());
     }
-    if (dtt[n.id] === 0 && hash3(n.id, 4, 2) < 0.12){
-      const pick = R(), w = g.blend, bi = pick < w[0] ? 0 : pick < w[0]+w[1] ? 1 : 2;
-      blos.push([new THREE.Matrix4().compose(V(n.x, n.y + 0.03, n.z), new THREE.Quaternion(), V(1,1,1).multiplyScalar(0.8 + R()*0.5)), BLOSSOM[bi], st]);
+  };
+  for (const s of g.shoots){
+    let n = N[s.node];
+    if (!n.alive) continue;
+    const st = startOf ? startOf(n.id) : -100;
+    pad(n, 16, 0.12, s.health, st);
+    for (let k=0;k<2 && n.parent > 0;k++){ n = N[n.parent]; pad(n, 6, 0.09, s.health, startOf ? startOf(n.id) : -100); }
+    if (hash3(s.node, 4, 2) < 0.18){
+      const R = mulberry32(hashInt(g.seed, s.node, 9)), w = g.blend, u = R(), bi = u < w[0] ? 0 : u < w[0]+w[1] ? 1 : 2;
+      const p = N[s.node];
+      blos.push([new THREE.Matrix4().compose(V(p.x + (R()-.5)*0.1, p.y + 0.05, p.z + (R()-.5)*0.1), new THREE.Quaternion(), V(1,1,1).multiplyScalar(0.9 + R()*0.5)), BLOSSOM[bi]]);
     }
   }
   if (mats.length){
@@ -570,29 +588,61 @@ function buildLeaves(startOf){
   }
 }
 
-// One turn: the simulation grows, then the new shoots extend on screen in the order they grew.
-const SEG_T = 0.55, STAGE_T = 0.55;
-function doGrow(){
-  if (anim || busy) return;
+// ---------- rings on the ruins ----------
+let ringGroup = null;
+const ironMat = addCutaway(new THREE.MeshStandardMaterial({color:0x4d443e, roughness:0.4, metalness:0.75}));
+const ringLitMat = new THREE.MeshBasicMaterial({color:0xffd27a, toneMapped:false});
+function buildRings(){
+  if (ringGroup){ scene.remove(ringGroup); ringGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+  ringGroup = new THREE.Group(); scene.add(ringGroup);
+  for (const r of g.rings){
+    const grp = new THREE.Group(); grp.position.set(r.x, r.y, r.z);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.015, 8, 24), ironMat);
+    if (r.kind === 'hang'){
+      ring.rotation.y = hash3(r.id, 1, 1)*TAU;
+      for (let k=1;k<=3;k++){ const l = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.007, 6, 12), ironMat); l.position.y = 0.075 + k*0.035; l.rotation.y = k%2 ? Math.PI/2 : 0; grp.add(l); }
+    } else {
+      ring.lookAt(r.nx, 0, r.nz);
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.02), ironMat);
+      plate.position.set(-r.nx*0.07, 0.07, -r.nz*0.07); plate.lookAt(r.nx*2, 0.07, r.nz*2);
+      grp.add(plate);
+      if (r.kind === 'column'){ const band = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 6, 32), ironMat); band.rotation.x = Math.PI/2; band.position.set(-r.nx*0.2, 0.07, -r.nz*0.2); grp.add(band); }
+    }
+    ring.castShadow = true;
+    grp.add(ring);
+    grp.userData.ring = ring;
+    ringGroup.add(grp);
+    r.mesh = ring;
+  }
+}
+
+// ---------- a turn: play the forced card, then animate the whole tree growing ----------
+const SEG_T = 0.5, STAGE_T = 0.5;
+let plan = null;
+function doTurn(action){
+  if (anim || busy || g.over) return;
   const before = g.nodes.length;
-  const added = growTurn(g);
+  const ok = play(g, action);
+  if (!ok){ toast("That can't be done there."); return; }
+  sel = null;
   save();
   syncWorld();
+  if (g.rings.length !== ringGroup.children.length) buildRings();
   hoursTo = GCFG.START_HOUR + g.turn*24/GCFG.TURNS_PER_DAY;
+  const added = g.lastAdded;
   buildWood(before);
-  const iters = Math.max(1, ...added.map(id => g.nodes[id].iter + 1));
-  const start = id => g.nodes[id].iter*STAGE_T + hash3(id, 1, 1)*0.15;
-  const startOf = id => id >= before ? start(id) + SEG_T*0.6 : -100;
-  buildLeaves(startOf);
-  if (newSegs){ scene.remove(newSegs); newSegs.dispose(); newSegs = null; }
-  if (added.length){
-    newSegs = new THREE.InstancedMesh(segGeo, barkMat, added.length);
-    newSegs.castShadow = true;
-    scene.add(newSegs);
-  }
-  anim = {t:0, added, start, total: iters*STAGE_T + SEG_T + 0.2};
+  const start = id => g.nodes[id].iter*STAGE_T + hash3(id, 1, 1)*0.12;
+  buildLeaves(id => id >= before ? start(id) + SEG_T*0.6 : -100);
+  newSegs = disposeMesh(newSegs);
+  if (added.length){ newSegs = new THREE.InstancedMesh(segGeo, barkMat, added.length); newSegs.castShadow = true; scene.add(newSegs); }
+  const stages = Math.max(1, ...added.map(id => g.nodes[id].iter + 1));
+  anim = {t:0, added, start, total: stages*STAGE_T + SEG_T + 0.15};
   animU.value = 0;
-  updateHud(added.length);
+  for (const e of g.events) eventToast(e);
+  plan = planTurn(g);
+  if (cam.mode === 'branch') setMode('follow');
+  render();
+  if (g.over) setTimeout(showOver, 1600);
 }
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), UP = V(0,1,0), tmpV = new THREE.Vector3();
 function stepAnim(dt){
@@ -612,49 +662,125 @@ function stepAnim(dt){
   }
   if (anim.t >= anim.total){
     buildWood(g.nodes.length);
-    if (newSegs){ scene.remove(newSegs); newSegs.dispose(); newSegs = null; }
+    newSegs = disposeMesh(newSegs);
     anim = null; animU.value = 1e4;
+    refreshMarkers();
+  }
+}
+
+// ---------- markers: shoot health, where each shoot will grow, and previews of the chosen action ----------
+const markers = new THREE.Group(); scene.add(markers);
+const sphereGeo = new THREE.SphereGeometry(1, 14, 10);
+const mk = c => new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:0.95, depthTest:false, toneMapped:false});
+const MAT = {good:mk(0x9be37a), ok:mk(0xffd166), poor:mk(0xffa24a), bad:mk(0xff5a4a), sel:mk(0xffffff), bud:mk(0x7dffb0)};
+const lineMat = c => new THREE.LineBasicMaterial({color:c, transparent:true, opacity:0.85, depthTest:false});
+const LINES = {grow:lineMat(0xffffff), block:lineMat(0xff5a4a), cut:lineMat(0xff5a4a), wire:lineMat(0xe0a060), bud:lineMat(0x7dffb0)};
+function dotAt(p, r, mat){ const m = new THREE.Mesh(sphereGeo, mat); m.position.copy(p); m.scale.setScalar(r); m.renderOrder = 30; markers.add(m); return m; }
+function lineSeg(pairs, mat){
+  const pts = []; for (const [a, b] of pairs) pts.push(a, b);
+  const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat); l.renderOrder = 29; markers.add(l); return l;
+}
+const healthMat = h => h > 0.7 ? MAT.good : h > 0.45 ? MAT.ok : h > 0.2 ? MAT.poor : MAT.bad;
+function refreshMarkers(){
+  markers.traverse(o => { if (o.geometry && o.geometry !== sphereGeo) o.geometry.dispose(); });
+  markers.clear();
+  if (!plan) plan = planTurn(g);
+  const N = g.nodes;
+  const growPairs = [], blockPairs = [];
+  for (const i of plan.info){
+    const n = i.n, s = i.s;
+    dotAt(P(n), 0.022, healthMat(s.health));
+    const d = s.wire != null ? V(g.rings[s.wire].x - n.x, g.rings[s.wire].y - n.y, g.rings[s.wire].z - n.z).normalize() : V(s.d[0], s.d[1], s.d[2]);
+    if (i.blockedAhead) blockPairs.push([P(n), P(n).addScaledVector(d, 0.1)]);
+    else if (i.ext > 0.02) growPairs.push([P(n), P(n).addScaledVector(d, i.ext)]);
+    if (s.wire != null){ const r = g.rings[s.wire]; lineSeg([[P(n), V(r.x, r.y, r.z)]], LINES.wire); }
+  }
+  if (growPairs.length) lineSeg(growPairs, LINES.grow);
+  if (blockPairs.length){ lineSeg(blockPairs, LINES.block); for (const [a, b] of blockPairs) dotAt(b, 0.018, MAT.bad); }
+  for (const r of g.rings) if (r.mesh) r.mesh.material = ironMat;
+  const card = g.queue[0];
+  if (card === 'wire'){
+    const valid = sel?.shoot != null ? targets(g, 'wire', 1, sel.shoot) : [];
+    for (const id of valid) g.rings[id].mesh.material = ringLitMat;
+    if (sel?.shoot != null){
+      const s = shootById(g, sel.shoot), n = N[s.node];
+      dotAt(P(n), 0.04, MAT.sel);
+      if (sel.ring != null){ const r = g.rings[sel.ring]; lineSeg([[P(n), V(r.x, r.y, r.z)]], LINES.wire); dotAt(V(r.x, r.y, r.z), 0.03, MAT.sel); }
+    }
+  }
+  if ((card === 'pinch' && sel?.shoot != null) || (card === 'cut' && sel?.node != null)){
+    const pv = previewAction(g, card, card === 'pinch' ? sel.shoot : sel.node);
+    if (pv){
+      if (card === 'pinch'){ const n = N[shootById(g, sel.shoot).node]; dotAt(P(n), 0.04, MAT.bad); }
+      else {
+        const pairs = [];
+        for (const id of pv.removed){ const n = N[id]; if (n.parent >= 0) pairs.push([P(N[n.parent]), P(n)]); }
+        lineSeg(pairs, LINES.cut);
+        dotAt(P(N[sel.node]), 0.035, MAT.bad);
+      }
+      const budPairs = [];
+      for (const b of pv.buds){ dotAt(P(b), 0.025, MAT.bud); budPairs.push([P(b), P(b).add(V(b.bud[0], b.bud[1], b.bud[2]).multiplyScalar(0.18))]); }
+      if (budPairs.length) lineSeg(budPairs, LINES.bud);
+    }
   }
 }
 
 // ---------- camera: follows growth; tap a branch and swipe to travel along it ----------
-const cam = {az:0.7, el:0.2, dist:2.6, focus:V(0, 0.6, 0), mode:'follow', node:-1};
-const markerMat = new THREE.MeshBasicMaterial({color:0xffe08a, transparent:true, opacity:0.9, depthTest:false, toneMapped:false});
-const marker = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), markerMat); marker.renderOrder = 20; marker.visible = false; scene.add(marker);
+const cam = {az:0.7, el:0.22, dist:2.7, focus:V(0, 0.8, 0), mode:'follow', node:-1};
 function goal(){
   if (cam.mode === 'branch' && cam.node >= 0){ const n = g.nodes[cam.node]; return V(n.x, n.y, n.z); }
   if (cam.mode === 'follow'){ const f = g.follow; return V(f.x*0.6, f.y, f.z*0.6); }
   return null;
 }
-function subtreeSizes(){ const N = g.nodes, s = new Array(N.length).fill(1); for (let i=N.length-1;i>0;i--) s[N[i].parent] += s[i]; return s; }
 function travel(steps){
   if (cam.node < 0) return;
+  const N = g.nodes, size = new Array(N.length).fill(0);
+  for (let i=N.length-1;i>=0;i--){ if (!N[i].alive) continue; size[i] += 1; if (N[i].parent >= 0) size[N[i].parent] += size[i]; }
   let id = cam.node;
-  const size = subtreeSizes();
   for (let i=0;i<Math.abs(steps);i++){
-    const n = g.nodes[id];
-    if (steps > 0){ if (!n.children.length) break; id = n.children.slice().sort((a,b) => size[b]-size[a])[0]; }
+    const n = N[id];
+    if (steps > 0){ const ch = n.children.filter(c => N[c].alive).sort((a,b) => size[b]-size[a]); if (!ch.length) break; id = ch[0]; }
     else { if (n.parent < 0) break; id = n.parent; }
   }
   cam.node = id;
+  if (g.queue[0] === 'cut' && sel && targets(g, 'cut').includes(id)){ sel.node = id; refreshMarkers(); renderUI(); }
 }
 function setMode(mode, node=-1){
   cam.mode = mode; cam.node = node;
-  marker.visible = mode === 'branch';
   $('modechip').textContent = mode === 'follow' ? 'Following the growth' : mode === 'branch' ? 'On a branch · swipe up or down to travel' : 'Looking around';
   $('followbtn').hidden = mode === 'follow';
 }
-function pickNode(cx, cy){
+function project(p){
   const rect = canvas.getBoundingClientRect();
-  let best = -1, bd = 34;
-  for (const n of g.nodes){
-    tmpV.set(n.x, n.y, n.z).project(camera);
-    if (tmpV.z > 1) continue;
-    const x = (tmpV.x*0.5+0.5)*rect.width, y = (-tmpV.y*0.5+0.5)*rect.height;
-    const d = Math.hypot(x - cx, y - cy);
-    if (d < bd){ bd = d; best = n.id; }
-  }
+  tmpV.copy(p).project(camera);
+  return tmpV.z > 1 ? null : {x:(tmpV.x*0.5+0.5)*rect.width, y:(-tmpV.y*0.5+0.5)*rect.height};
+}
+function nearest(items, cx, cy, maxPx){
+  let best = null, bd = maxPx;
+  for (const it of items){ const s = project(it.p); if (!s) continue; const d = Math.hypot(s.x - cx, s.y - cy); if (d < bd){ bd = d; best = it; } }
   return best;
+}
+function onTap(cx, cy){
+  if (anim || g.over) return;
+  const card = g.queue[0];
+  if (card === 'pinch'){
+    const hit = nearest(g.shoots.map(s => ({p:P(g.nodes[s.node]), id:s.id, node:s.node})), cx, cy, 44);
+    if (hit){ sel = {shoot:hit.id}; setMode('branch', hit.node); }
+  } else if (card === 'cut'){
+    const valid = new Set(targets(g, 'cut'));
+    const hit = nearest(g.nodes.filter(n => valid.has(n.id)).map(n => ({p:P(n), id:n.id})), cx, cy, 36);
+    if (hit){ sel = {node:hit.id}; setMode('branch', hit.id); }
+  } else if (card === 'wire'){
+    if (sel?.shoot != null){
+      const ring = nearest(targets(g, 'wire', 1, sel.shoot).map(id => ({p:V(g.rings[id].x, g.rings[id].y, g.rings[id].z), id})), cx, cy, 54);
+      if (ring){ sel.ring = ring.id; }
+      else { const hit = nearest(targets(g, 'wire').map(id => ({p:P(g.nodes[shootById(g, id).node]), id})), cx, cy, 44); if (hit) sel = {shoot:hit.id}; }
+    } else {
+      const hit = nearest(targets(g, 'wire').map(id => ({p:P(g.nodes[shootById(g, id).node]), id, node:shootById(g, id).node})), cx, cy, 44);
+      if (hit){ sel = {shoot:hit.id}; setMode('branch', hit.node); }
+    }
+  }
+  refreshMarkers(); renderUI();
 }
 const pointers = new Map();
 let gesture = null;
@@ -668,82 +794,131 @@ canvas.addEventListener('pointermove', e => {
   const prev = pointers.get(e.pointerId); if (!prev || !gesture) return;
   const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-  if (gesture.pinch){
-    const [a, b] = [...pointers.values()];
-    cam.dist = clamp(gesture.dist*gesture.pinch/Math.max(10, Math.hypot(a.x-b.x, a.y-b.y)), 0.8, 8);
-    return;
-  }
+  if (gesture.pinch){ const [a, b] = [...pointers.values()]; cam.dist = clamp(gesture.dist*gesture.pinch/Math.max(10, Math.hypot(a.x-b.x, a.y-b.y)), 0.7, 8); return; }
   gesture.moved += Math.hypot(dx, dy);
   if (!gesture.axis && gesture.moved > 8) gesture.axis = Math.abs(e.clientX - gesture.x0) > Math.abs(e.clientY - gesture.y0) ? 'h' : 'v';
   if (gesture.axis === 'h') cam.az -= dx*0.008;
   else if (gesture.axis === 'v'){
     if (cam.mode === 'branch'){
       gesture.acc += dy;
-      while (gesture.acc <= -14){ travel(1); gesture.acc += 14; }
-      while (gesture.acc >= 14){ travel(-1); gesture.acc -= 14; }
-    } else {
-      if (cam.mode === 'follow') setMode('free');
-      cam.focus.y = clamp(cam.focus.y - dy*0.01, 0, g.maxY + 1);
-    }
+      while (gesture.acc <= -16){ travel(1); gesture.acc += 16; }
+      while (gesture.acc >= 16){ travel(-1); gesture.acc -= 16; }
+    } else { if (cam.mode === 'follow') setMode('free'); cam.focus.y = clamp(cam.focus.y - dy*0.01, 0, g.maxY + 1); }
   }
 });
 const endPointer = e => {
   pointers.delete(e.pointerId);
-  if (gesture && !gesture.pinch && pointers.size === 0 && gesture.moved < 8 && performance.now() - gesture.t0 < 450){
-    const id = pickNode(e.clientX, e.clientY);
-    if (id >= 0){ setMode('branch', id); }
-  }
+  if (gesture && !gesture.pinch && pointers.size === 0 && gesture.moved < 8 && performance.now() - gesture.t0 < 450) onTap(e.clientX, e.clientY);
   if (pointers.size === 0) gesture = null;
 };
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
-canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist*Math.exp(e.deltaY*0.001), 0.8, 8); }, {passive:false});
+canvas.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist*Math.exp(e.deltaY*0.001), 0.7, 8); }, {passive:false});
 window.addEventListener('keydown', e => {
-  if (e.key === ' ' || e.key === 'Enter'){ if (document.activeElement === document.body) { e.preventDefault(); doGrow(); } }
   if (e.key === 'ArrowLeft') cam.az += 0.15;
   if (e.key === 'ArrowRight') cam.az -= 0.15;
-  if (e.key === 'ArrowUp'){ if (cam.mode === 'branch') travel(2); else { setMode('free'); cam.focus.y += 0.2; } }
-  if (e.key === 'ArrowDown'){ if (cam.mode === 'branch') travel(-2); else { setMode('free'); cam.focus.y -= 0.2; } }
+  if (e.key === 'ArrowUp'){ if (cam.mode === 'branch') travel(1); else { setMode('free'); cam.focus.y += 0.2; } }
+  if (e.key === 'ArrowDown'){ if (cam.mode === 'branch') travel(-1); else { setMode('free'); cam.focus.y -= 0.2; } }
 });
 
-// ---------- run, saving, HUD ----------
-const KEY = 'bonzai.grow.v1';
-let g, busy = false;
-function save(){ store.set(KEY, {seed:g.seed, turns:g.turn}); }
-function startRun(seed, turns=0){
+// ---------- run, saving, interface ----------
+const KEY = 'bonzai.grow.v2';
+let g, busy = false, sel = null;
+function save(){ store.set(KEY, {seed:g.seed, log:g.log}); }
+function startRun(seed, log=[]){
   busy = true;
-  g = turns ? replayWorld(seed, turns) : newWorld(seed);
-  resetWorld(); syncWorld();
-  if (newSegs){ scene.remove(newSegs); newSegs.dispose(); newSegs = null; }
-  anim = null; animU.value = 1e4;
-  buildWood(g.nodes.length); buildLeaves(null);
+  g = log.length ? replayGame(seed, log) : newGame(seed);
+  sel = null; plan = null;
+  resetWorld(); syncWorld(); buildRings();
+  newSegs = disposeMesh(newSegs); anim = null; animU.value = 1e4;
+  buildRoots(); buildWood(g.nodes.length); buildLeaves(null);
   hours = hoursTo = GCFG.START_HOUR + g.turn*24/GCFG.TURNS_PER_DAY;
   cam.focus.set(g.follow.x*0.6, g.follow.y, g.follow.z*0.6);
   setMode('follow');
-  $('runname').textContent = `Tree ${seed}`;
+  $('runname').textContent = `Temple fig · tree ${seed}`;
   $('blend').textContent = STYLES.map((s,i) => [s, Math.round(g.blend[i]*100)]).sort((a,b) => b[1]-a[1]).map(([s,p]) => `${s} ${p}`).join(' · ');
-  updateHud(0);
+  $('over').hidden = true;
   save();
   busy = false;
+  render();
+  if (g.over) showOver();
 }
-function updateHud(added){
+function render(){ refreshMarkers(); renderUI(); }
+
+const CARD_COLOR = {pinch:'#7dffb0', cut:'#ff7a5a', wire:'#e0a060'};
+function renderUI(){
+  const card = g.queue[0], c = CARDS[card];
+  $('cardname').textContent = c.name;
+  $('cardtext').textContent = c.text;
+  $('current').style.setProperty('--stripe', CARD_COLOR[card]);
+  const nx = $('next'); nx.textContent = '';
+  g.queue.slice(1).forEach(k => { const s = document.createElement('span'); s.className = 'chip'; s.style.setProperty('--stripe', CARD_COLOR[k]); s.textContent = CARDS[k].name; nx.appendChild(s); });
+  let prompt = '', ready = false;
+  if (canPass(g)){ prompt = 'Nothing to wire within reach. Pass this card.'; }
+  else if (card === 'pinch'){ prompt = sel?.shoot != null ? 'Green: buds that will wake.' : 'Tap a shoot tip to pinch.'; ready = sel?.shoot != null; }
+  else if (card === 'cut'){ prompt = sel?.node != null ? 'Red: what will be removed. Green: the bud that wakes. Swipe along the branch to move the cut.' : 'Tap a branch where you want to cut.'; ready = sel?.node != null; }
+  else if (card === 'wire'){ prompt = sel?.shoot == null ? 'Tap a shoot to wire.' : sel.ring == null ? 'Tap a glowing ring to tie it to.' : 'Ready to wire.'; ready = sel?.ring != null; }
+  $('prompt').textContent = prompt;
+  const go = $('confirm');
+  go.textContent = canPass(g) ? 'Pass' : {pinch:'Pinch', cut:'Cut here', wire:'Wire'}[card];
+  go.disabled = !(ready || canPass(g)) || !!anim;
+  $('cancel').hidden = !sel;
   $('h').textContent = g.maxY.toFixed(2) + ' m';
-  const tips = g.nodes.filter(n => !n.children.length).length;
-  $('stats').textContent = `${tips} twig tips · ${g.nodes.length} segments` + (g.turn ? ` · +${added} this turn` : '');
+  const hp = Math.round(g.health*100);
+  $('hp').textContent = `Health ${hp}%`;
+  $('hpbar').style.width = hp + '%';
+  $('hpbar').style.background = hp > 65 ? '#9be37a' : hp > 40 ? '#ffd166' : '#ff6a55';
+  $('score').textContent = `Score ${score(g)} · best height ${g.peak.toFixed(2)} m`;
+  const stuck = plan ? plan.info.filter(i => i.blockedAhead).length : 0;
+  $('stats').textContent = `${g.shoots.length} shoots` + (stuck ? ` · ${stuck} against stone` : '');
   const hr = hourOf(g.turn);
-  $('clock').textContent = `Day ${dayOf(g.turn)} · ${String(Math.floor(hr)).padStart(2,'0')}:00 · ${isDay(g.turn) ? 'Day' : 'Night'} · turn ${g.turn}`;
+  $('clock').textContent = `Day ${dayOf(g.turn)} · ${String(Math.floor(hr)).padStart(2,'0')}:00 · ${isDay(g.turn) ? 'Day' : 'Night'} · turn ${g.turn + 1}`;
   const m = g.modules.find(m => g.follow.y >= m.y0 && g.follow.y < m.y1);
   $('place').textContent = m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]}` : '';
-  $('growbtn').textContent = isDay(g.turn) ? 'Grow' : 'Grow (night: slower)';
-  $('note').hidden = g.stall < 2;
 }
-$('growbtn').addEventListener('click', doGrow);
+$('confirm').addEventListener('click', () => {
+  const card = g.queue[0];
+  if (canPass(g)) return doTurn({pass:true});
+  if (card === 'pinch' && sel?.shoot != null) doTurn({card, shoot:sel.shoot});
+  if (card === 'cut' && sel?.node != null) doTurn({card, node:sel.node});
+  if (card === 'wire' && sel?.ring != null) doTurn({card, shoot:sel.shoot, ring:sel.ring});
+});
+$('cancel').addEventListener('click', () => { sel = null; setMode('follow'); render(); });
 $('followbtn').addEventListener('click', () => setMode('follow'));
 $('newbtn').addEventListener('click', () => { $('confirmnew').hidden = !$('confirmnew').hidden; });
 $('newyes').addEventListener('click', () => { $('confirmnew').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
 $('newno').addEventListener('click', () => { $('confirmnew').hidden = true; });
 $('aboutbtn').addEventListener('click', () => { $('about').hidden = false; });
 $('aboutok').addEventListener('click', () => { $('about').hidden = true; });
+$('o-new').addEventListener('click', () => { $('over').hidden = true; startRun(1 + Math.floor(Math.random()*999999)); });
+$('o-look').addEventListener('click', () => { $('over').hidden = true; });
+function showOver(){
+  $('o-h').textContent = g.peak.toFixed(2) + ' m';
+  $('o-hp').textContent = Math.round(avgHealth(g)*100) + '%';
+  $('o-s').textContent = score(g);
+  $('o-t').textContent = g.turn;
+  $('over').hidden = false;
+}
+
+const MSG = {
+  blocked:'A shoot is pressing against stone and weakening.', dieback:'A shoot died back to dead wood.', rebud:'The fig woke a bud just behind it.',
+  snap:'A long unbranched shoot snapped off.', tied:'A wired shoot reached its ring and is tied.', branch:'A strong shoot branched on its own.',
+  weak:'The tree is weak. Too many shoots are hungry, shaded or stuck.', over:'The tree has no living shoots left.',
+};
+function eventToast(e){
+  if (e.type === 'pinch') return toast(e.woke ? `Pinched. ${e.woke} bud${e.woke>1?'s':''} woke behind it.` : 'Pinched. No buds were left to wake there.');
+  if (e.type === 'cut') return toast(`Cut away ${e.removed} segment${e.removed===1?'':'s'}.` + (e.woke ? ' A bud woke behind the cut.' : ' No bud left to wake there.'));
+  if (e.type === 'wire') return toast('Wired. The shoot will grow toward the ring.');
+  if (MSG[e.type]) toast(MSG[e.type]);
+}
+const recent = new Map();
+function toast(text){
+  const now = performance.now(); if (recent.get(text) > now - 1500) return; recent.set(text, now);
+  const box = $('toasts');
+  while (box.children.length >= 3) box.firstChild.remove();
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = text; box.appendChild(t);
+  setTimeout(() => t.classList.add('out'), 3600); setTimeout(() => t.remove(), 4200);
+}
 
 function resize(){
   const w = window.innerWidth, h = window.innerHeight;
@@ -759,7 +934,9 @@ let first = true;
 function frame(){
   const raw = clock.getDelta(), dt = Math.min(0.05, raw);
   timeU.value += dt;
+  const wasAnim = !!anim;
   stepAnim(Math.min(raw, 0.1));
+  if (wasAnim && !anim) renderUI();
   if (Math.abs(hoursTo - hours) > 0.001) hours += (hoursTo - hours)*Math.min(1, raw*1.8);
   applyTime();
   const gl = goal();
@@ -767,7 +944,6 @@ function frame(){
   const ce = Math.cos(cam.el);
   camera.position.set(cam.focus.x + Math.sin(cam.az)*ce*cam.dist, cam.focus.y + Math.sin(cam.el)*cam.dist, cam.focus.z + Math.cos(cam.az)*ce*cam.dist);
   camera.lookAt(cam.focus);
-  if (cam.mode === 'branch' && cam.node >= 0){ const n = g.nodes[cam.node]; marker.position.set(n.x, n.y, n.z); marker.scale.setScalar(Math.max(0.018, n.r*1.4)); }
   sun.target.position.set(cam.focus.x*0.5, cam.focus.y + 0.5, cam.focus.z*0.5);
   sky.position.copy(camera.position);
   cutU.cam.value.copy(camera.position); cutU.focus.value.copy(cam.focus);
@@ -787,8 +963,8 @@ function frame(){
 
 resize();
 const saved = store.get(KEY);
-try { startRun(saved?.seed ?? (1 + Math.floor(Math.random()*999999)), saved?.turns ?? 0); }
+try { startRun(saved?.seed ?? (1 + Math.floor(Math.random()*999999)), saved?.log ?? []); }
 catch (e) { console.error(e); startRun(1 + Math.floor(Math.random()*999999)); }
-// console handle for testing: bonzai.g is the live tree
-window.bonzai = { get g(){ return g; }, grow: doGrow, cam, get animating(){ return !!anim; }, setMode };
+// console handle for testing: bonzai.g is the live game
+window.bonzai = { get g(){ return g; }, turn: doTurn, cam, get animating(){ return !!anim; }, setMode, onTap, get sel(){ return sel; }, set sel(v){ sel = v; render(); } };
 requestAnimationFrame(frame);
