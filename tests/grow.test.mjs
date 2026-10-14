@@ -15,7 +15,7 @@ function randomMove(g, R){
   const i = Math.floor(R()*g.hand.length);
   return actionFor(g, i, card => {
     const ts = targets(g, card);
-    if (card === 'wire'){ const s = pick(ts, R); return {shoot:s, ring:pick(targets(g, 'wire', 1, s), R)}; }
+    if (card === 'wire'){ const n = pick(ts, R); return {node:n, ring:pick(targets(g, 'wire', 1, n), R)}; }
     if (card === 'pinch') return {shoot:pick(ts, R)};
     return {node:pick(ts, R)};
   });
@@ -26,7 +26,7 @@ function carelessMove(g, R){
     if (card === 'pinch') return {shoot:[...g.shoots].sort((a,b) => a.health - b.health)[0].id};
     if (card === 'cut'){ const leaf = g.nodes.filter(n => n.alive && n.id > 2 && !n.children.some(c => g.nodes[c].alive)); return {node:(leaf.length ? leaf : g.nodes.filter(n => n.alive && n.id > 2))[0].id}; }
     if (card === 'root') return {node:targets(g, 'root')[0]};
-    const s = targets(g, 'wire')[0]; return {shoot:s, ring:targets(g, 'wire', 1, s)[0]};
+    const n = targets(g, 'wire')[0]; return {node:n, ring:targets(g, 'wire', 1, n)[0]};
   }) || randomMove(g, R);
 }
 // a gardener's habits, choosing the order: clear trouble first (cut), then wire, then wake buds, pinch last
@@ -38,7 +38,7 @@ function carefulMove(g, R){
   const i = [...g.hand.keys()].sort((a, b) => order.indexOf(g.hand[a]) - order.indexOf(g.hand[b]))[0];
   return actionFor(g, i, card => {
     if (card === 'pinch'){
-      const s = [...g.shoots].filter(s => s.wire == null).sort((a,b) => (b.run + (info.get(b.id)?.ext||0)*2) - (a.run + (info.get(a.id)?.ext||0)*2))[0] || g.shoots[0];
+      const s = [...g.shoots].sort((a,b) => (b.run + (info.get(b.id)?.ext||0)*2) - (a.run + (info.get(a.id)?.ext||0)*2))[0] || g.shoots[0];
       return {shoot:s.id};
     }
     if (card === 'cut'){
@@ -53,11 +53,16 @@ function carefulMove(g, R){
       const ts = targets(g, 'root').map(id => g.nodes[id]).sort((a,b) => (b.y + b.bud[1]) - (a.y + a.bud[1]));
       return {node:ts[0].id};
     }
+    // tie a few nodes behind a troubled or leggy tip, to the ring that lifts it most
     let best = null, bs = -1e9;
-    for (const sid of targets(g, 'wire')){
-      const s = shootById(g, sid), n = g.nodes[s.node];
-      for (const rid of targets(g, 'wire', 1, sid)){ const r = g.rings[rid]; const sc = (r.y - n.y) + s.run; if (sc > bs){ bs = sc; best = {shoot:sid, ring:rid}; } }
+    const ok = new Set(targets(g, 'wire'));
+    for (const s of g.shoots){
+      let tie = s.node; for (let k=0;k<2 && g.nodes[tie].parent > 2;k++) tie = g.nodes[tie].parent;
+      if (!ok.has(tie)) continue;
+      const n = g.nodes[tie], it = info.get(s.id), need = (it?.blockedAhead ? 1 : 0) + (it && it.L < 0.4 ? 0.5 : 0) + s.run;
+      for (const rid of targets(g, 'wire', 1, tie)){ const r = g.rings[rid]; const sc = need + (r.y - n.y)*0.5 - Math.hypot(r.x-n.x, r.y-n.y, r.z-n.z)*0.2; if (sc > bs){ bs = sc; best = {node:tie, ring:rid}; } }
     }
+    if (!best){ const n = [...ok][0]; best = {node:n, ring:targets(g, 'wire', 1, n)[0]}; }
     return best;
   }) || randomMove(g, R);
 }

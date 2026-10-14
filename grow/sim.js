@@ -30,7 +30,11 @@ export const GCFG = {
   H_BLOCKED: -0.3, H_SHADE: -0.12, H_STARVE: -0.12, H_LEGGY: -0.07, H_HEAL: 0.1,
   DIEBACK_NODES: 3,
   REBUD: 0.5,           // fig: chance a bud wakes behind die-back
-  WIRE_RANGE: 2.4, WIRE_PULL: 0.85,
+  WIRE_RANGE: 2.0,      // a guy wire reaches this far from its tie point to a ring
+  WIRE_STEP: 0.12,      // radians a wired branch bends per turn, for thin wood
+  WIRE_MAX: 0.9,        // most a wire bends a thin branch in total (radians)
+  WIRE_FLEX_R: 0.04,    // branch radius (m) at which it bends half as much: thick wood is stiff
+  WIRE_SET: 4,          // turns until the bend has set and the wire comes off
   HAND: 3,              // cards per hand; all must be played, in any order; never three the same
   DECK: {cut:0.38, pinch:0.38, wire:0.12, root:0.12},
   SENSE_R: 0.8,         // shoots sense brighter space this far away
@@ -64,6 +68,7 @@ export const SPECIES = {
   juniper: {name:'Juniper', latin:'Juniperus chinensis', blurb:'Slow, tough and stiff. Bare wood never regrows: a branch without foliage dies to silver deadwood. Plan every cut.',
     cfg:{
       BARE_BUDS:false, JIN:true, REBUD:0, TRUNK_BEND:2.4, TRUNK_WAVE:1.7,
+      WIRE_STEP:0.08, WIRE_MAX:1.2, WIRE_FLEX_R:0.07, WIRE_SET:9,
       YIELD:0.2, MAX_EXT:0.2, APICAL:1.8, NATURAL_BREAK:0.12, NATURAL_RUN:0.4,
       H_BLOCKED:-0.18, H_STARVE:-0.08, H_SHADE:-0.16, H_HEAL:0.06,
       SAG:0.15, SNAP:2.6,
@@ -72,6 +77,7 @@ export const SPECIES = {
     cards:{
       cut:'Cut a branch anywhere. Everything beyond is removed. A bud wakes only if foliage remains just behind the cut; otherwise the stub dies to deadwood.',
       root:'Wake a dormant bud within the foliage. Juniper buds on bare wood will not wake.',
+      wire:'Tie a guy wire from a point on a branch to an iron ring. Juniper bends even where it is old and thick, but slowly, and takes long to set.',
     }},
 };
 let current = 'fig';
@@ -261,7 +267,7 @@ function addNode(g, x, y, z, parent, d, o={}){
   return id;
 }
 function addShoot(g, node, d, health=1){
-  const s = {id:g.shootSeq++, node, d:V3.norm(d), health, run:0, carry:0, blocked:false, sliding:false, stone:0, wire:null, tied:false, share:0, L:1};
+  const s = {id:g.shootSeq++, node, d:V3.norm(d), health, run:0, carry:0, blocked:false, sliding:false, stone:0, held:false, share:0, L:1};
   g.shoots.push(s);
   return s;
 }
@@ -320,7 +326,7 @@ export function newGame(seed, species='fig'){
     seed, species:current, turn:0, blend:blendFromSeed(seed), modules:[], rings:[],
     nodes:[], shoots:[], shootSeq:0, budPhase:0, maxY:0, peak:0,
     hand:[], drawR:mulberry32(hashInt(seed, 2)), log:[], events:[], over:false,
-    healthSum:0, healthTurns:0, health:1, lastAdded:[],
+    healthSum:0, healthTurns:0, health:1, lastAdded:[], wires:[],
   };
   plantBonsai(g);
   ensureWorld(g);
@@ -423,14 +429,8 @@ export function planTurn(g){
 function ev(g, type, data={}){ g.events.push({type, ...data}); }
 
 function growDir(g, s, ldir){
-  let d = s.d;
-  if (s.wire != null){
-    const r = g.rings[s.wire], n = g.nodes[s.node];
-    const to = V3.norm([r.x - n.x, r.y - n.y, r.z - n.z]);
-    d = V3.norm([d[0]*(1-G.WIRE_PULL) + to[0]*G.WIRE_PULL, d[1]*(1-G.WIRE_PULL) + to[1]*G.WIRE_PULL, d[2]*(1-G.WIRE_PULL) + to[2]*G.WIRE_PULL]);
-    return d;
-  }
-  const sag = !s.tied && s.run > G.LEGGY ? G.SAG*(s.run - G.LEGGY + 0.2) : 0;
+  const d = s.d;
+  const sag = !s.held && s.run > G.LEGGY ? G.SAG*(s.run - G.LEGGY + 0.2) : 0;
   return V3.norm([d[0] + ldir[0]*G.PHOTO, d[1] + G.TROPISM + ldir[1]*G.PHOTO*0.5 - sag, d[2] + ldir[2]*G.PHOTO]);
 }
 
@@ -446,9 +446,78 @@ function removeSubtree(g, id){
   }
   const set = new Set(cut);
   g.shoots = g.shoots.filter(s => !set.has(s.node));
-  for (const r of g.rings) if (r.used !== false && set.has(r.usedNode)) r.used = false;
+  for (const w of g.wires) if (set.has(w.node)){ g.rings[w.ring].used = false; w.gone = true; }
+  g.wires = g.wires.filter(w => !w.gone);
   return cut.length;
 }
+// ---------- guy wires ----------
+// A wire runs from a tie point on a branch to a ring. The stretch of branch from where it leaves its parent up to the
+// tie point bends toward the ring a little each turn, spread over its joints so it curves rather than hinges; thick
+// wood bends less. Everything beyond the tie point swings with it. When the wood has set, the wire comes off.
+function sectionOf(g, tie){
+  const path = [tie];
+  let cur = tie;
+  while (g.nodes[cur].parent >= 0 && g.nodes[g.nodes[cur].parent].main === cur && g.nodes[cur].parent !== 0){ cur = g.nodes[cur].parent; path.push(cur); }
+  return {pivot: Math.max(0, g.nodes[cur].parent), path: path.reverse()};
+}
+function subtreeOf(g, id){
+  const out = [], stack = [id];
+  while (stack.length){ const k = stack.pop(), n = g.nodes[k]; if (!n.alive) continue; out.push(k); for (const c of n.children) stack.push(c); }
+  return out;
+}
+function rotVec(v, k, c, s){
+  const d = k[0]*v[0] + k[1]*v[1] + k[2]*v[2];
+  return [v[0]*c + (k[1]*v[2] - k[2]*v[1])*s + k[0]*d*(1-c), v[1]*c + (k[2]*v[0] - k[0]*v[2])*s + k[1]*d*(1-c), v[2]*c + (k[0]*v[1] - k[1]*v[0])*s + k[2]*d*(1-c)];
+}
+function rotateSubtree(g, ids, p, k, ang){
+  const c = Math.cos(ang), s = Math.sin(ang), set = new Set(ids);
+  for (const id of ids){
+    const n = g.nodes[id];
+    [n.x, n.y, n.z] = rotVec([n.x - p.x, n.y - p.y, n.z - p.z], k, c, s).map((v, i) => v + [p.x, p.y, p.z][i]);
+    [n.dx, n.dy, n.dz] = rotVec([n.dx, n.dy, n.dz], k, c, s);
+    if (n.bud) n.bud = rotVec(n.bud, k, c, s);
+    if (n.cutEnd) n.cutEnd = rotVec(n.cutEnd, k, c, s);
+  }
+  for (const sh of g.shoots) if (set.has(sh.node)) sh.d = rotVec(sh.d, k, c, s);
+}
+export function wireFlex(g, tie){ const r = g.nodes[sectionOf(g, tie).path[0]].r; return 1/(1 + (r/G.WIRE_FLEX_R)**2); }
+function bendWires(g){
+  for (const w of g.wires){
+    w.age++;
+    const N = g.nodes, T = N[w.node], J = N[w.pivot], R = g.rings[w.ring];
+    const v1 = [T.x - J.x, T.y - J.y, T.z - J.z], v2 = [R.x - J.x, R.y - J.y, R.z - J.z];
+    const l1 = Math.hypot(...v1), l2 = Math.hypot(...v2);
+    if (l1 < 1e-6 || l2 < 1e-6) continue;
+    const ang = Math.acos(Math.max(-1, Math.min(1, (v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2])/(l1*l2))));
+    const flex = wireFlex(g, w.node);
+    let a = Math.min(G.WIRE_STEP*flex, ang - 0.03, G.WIRE_MAX*flex - w.bent);
+    if (a <= 0.002) continue;
+    const k = V3.norm(V3.cross(v1, v2));
+    if (!isFinite(k[0])) continue;
+    const path = sectionOf(g, w.node).path, moved = subtreeOf(g, path[0]);
+    const before = moved.map(id => [N[id].x, N[id].y, N[id].z, N[id].dx, N[id].dy, N[id].dz, N[id].bud, N[id].cutEnd]);
+    const shootD = g.shoots.map(s => s.d);
+    const wasBlocked = new Set(moved.filter(id => blockedAt(g, N[id].x, N[id].y, N[id].z, 0.02)));
+    for (let tries=0; tries<3 && a > 0.002; tries++){
+      for (let i=0;i<path.length;i++){
+        const pv = N[i === 0 ? w.pivot : path[i-1]];
+        rotateSubtree(g, subtreeOf(g, path[i]), {x:pv.x, y:pv.y, z:pv.z}, k, a/path.length);
+      }
+      if (!moved.some(id => !wasBlocked.has(id) && blockedAt(g, N[id].x, N[id].y, N[id].z, 0.02))){ w.bent += a; break; }
+      // stone in the way: undo and try a smaller bend
+      moved.forEach((id, j) => { const b = before[j], n = N[id]; [n.x, n.y, n.z, n.dx, n.dy, n.dz] = b; n.bud = b[6]; n.cutEnd = b[7]; });
+      g.shoots.forEach((s, j) => { s.d = shootD[j]; });
+      a *= 0.4;
+    }
+  }
+  for (const w of g.wires) if (w.age >= G.WIRE_SET){ g.rings[w.ring].used = false; w.gone = true; ev(g, 'set', {node:w.node}); }
+  g.wires = g.wires.filter(w => !w.gone);
+}
+// a shoot is held up (no sag, no snapping) while a wire is tied on its branch, at or behind it
+function holdShoots(g){
+  for (const s of g.shoots){ s.held = g.wires.some(w => isAncestor(g, w.node, s.node)); }
+}
+
 // the best dormant bud on this node or the few just behind it (read-only, used for previews too)
 // Nodes carrying foliage: each living tip and the few nodes behind it.
 export function foliageSet(g, skip=null){
@@ -528,7 +597,7 @@ export function previewAction(g, card, target){
 export const CARDS = {
   pinch: {name:'Pinch', text:'Stop a shoot. Up to two buds just behind it wake as short shoots: a denser, more compact pad.'},
   cut:   {name:'Cut', text:'Cut a branch anywhere. Everything beyond the cut is removed; a dormant bud just behind it wakes.'},
-  wire:  {name:'Wire', text:'Wire a shoot to an iron ring. It grows toward the ring and will not sag; once tied it climbs on.'},
+  wire:  {name:'Wire', text:'Tie a guy wire from a point on a branch to an iron ring. Over the next turns the branch bends toward the ring (thin wood bends more) and does not sag. When the wood has set, the wire comes off.'},
   root:  {name:'Rooting powder', text:'Wake a dormant bud of your choice on old wood. It grows out in its own direction.'},
 };
 function drawCard(g){
@@ -549,10 +618,11 @@ export function targets(g, card, step=0, first=null){
   if (card === 'root'){ const fol = G.BARE_BUDS ? null : foliageSet(g); return g.nodes.filter(n => n.alive && !n.dead && n.bud && n.y > 0.15 && !shootAt(g, n.id) && (!fol || fol.has(n.id))
     && !blockedAt(g, n.x + n.bud[0]*G.SEG, n.y + n.bud[1]*G.SEG, n.z + n.bud[2]*G.SEG)).map(n => n.id); }
   if (card === 'wire'){
-    if (step === 0) return g.shoots.filter(s => s.wire == null && targets(g, 'wire', 1, s.id).length).map(s => s.id);
-    const s = shootById(g, first); if (!s) return [];
-    const n = g.nodes[s.node];
-    return g.rings.filter(r => !r.used && Math.hypot(r.x-n.x, r.y-n.y, r.z-n.z) <= G.WIRE_RANGE && r.y > n.y - 0.6).map(r => r.id);
+    // step 0: tie points (living branch nodes with a free ring in reach); step 1: rings in reach of tie point `first`
+    if (step === 0) return g.nodes.filter(n => n.alive && !n.dead && n.id > 2 && !g.wires.some(w => w.node === n.id)
+      && g.rings.some(r => !r.used && Math.hypot(r.x-n.x, r.y-n.y, r.z-n.z) <= G.WIRE_RANGE)).map(n => n.id);
+    const n = g.nodes[first]; if (!n || !n.alive || n.dead) return [];
+    return g.rings.filter(r => !r.used && Math.hypot(r.x-n.x, r.y-n.y, r.z-n.z) <= G.WIRE_RANGE).map(r => r.id);
   }
   return [];
 }
@@ -591,9 +661,9 @@ function apply(g, a){
     return true;
   }
   if (card === 'wire'){
-    if (!targets(g, 'wire').includes(a.shoot) || !targets(g, 'wire', 1, a.shoot).includes(a.ring)) return false;
-    const s = shootById(g, a.shoot); s.wire = a.ring; s.tied = false;
-    g.rings[a.ring].used = true; g.rings[a.ring].usedNode = s.node;
+    if (!targets(g, 'wire').includes(a.node) || !targets(g, 'wire', 1, a.node).includes(a.ring)) return false;
+    g.wires.push({node:a.node, ring:a.ring, pivot:sectionOf(g, a.node).pivot, age:0, bent:0});
+    g.rings[a.ring].used = true;
     ev(g, 'wire');
     return true;
   }
@@ -614,6 +684,8 @@ export function play(g, a){
 
 // ---------- growth turn ----------
 function growTurn(g){
+  bendWires(g);
+  holdShoots(g);
   const plan = planTurn(g), shootsBefore = g.shoots.length;
   const R = mulberry32(hashInt(g.seed, 700 + g.turn));
   const added = [];
@@ -629,7 +701,7 @@ function growTurn(g){
       const x = n.x + d[0]*G.SEG, y = n.y + d[1]*G.SEG, z = n.z + d[2]*G.SEG;
       let gd = d, gx = x, gy = y, gz = z, cost = G.SEG;
       if (blockedAt(g, x, y, z) || blockedAt(g, n.x + d[0]*G.SEG*0.5, n.y + d[1]*G.SEG*0.5, n.z + d[2]*G.SEG*0.5)){
-        const sl = s.wire == null ? slideDir(g, n, d, i.ldir) : null;
+        const sl = slideDir(g, n, d, i.ldir);
         if (!sl){ s.blocked = true; s.carry = 0; break; }
         if (!s.sliding && s.stone === 0) ev(g, 'slide', {shoot:s.id});
         s.sliding = true;
@@ -639,16 +711,7 @@ function growTurn(g){
       s.carry -= cost;
       const id = addNode(g, gx, gy, gz, s.node, gd, {iter:k++});
       added.push(id);
-      s.node = id; s.d = s.wire != null ? s.d : gd; s.run += G.SEG;
-      if (s.wire != null){
-        const r = g.rings[s.wire];
-        r.usedNode = id;
-        if (Math.hypot(r.x - gx, r.y - gy, r.z - gz) < 0.28){
-          s.wire = null; s.tied = true; s.run = 0; s.d = V3.norm([s.d[0]*0.3, 1, s.d[2]*0.3]);
-          s.health = Math.min(1, s.health + 0.3);
-          ev(g, 'tied', {shoot:s.id});
-        }
-      }
+      s.node = id; s.d = gd; s.run += G.SEG;
     }
     if (s.carry > G.SEG/G.SLIDE_SPEED) s.carry = G.SEG/G.SLIDE_SPEED;
     s.stone = (s.blocked || s.sliding) ? s.stone + 1 : 0;
@@ -668,10 +731,10 @@ function growTurn(g){
     if (s.blocked && s.stone > G.STONE_GRACE){ dh += G.H_BLOCKED; ev(g, 'blocked', {shoot:s.id}); }
     if (day && i.L < G.SHADE_L) dh += G.H_SHADE;
     if (day && i.ext < G.MIN_SHARE) dh += G.H_STARVE;
-    if (!s.tied && s.wire == null && s.run > G.LEGGY) dh += G.H_LEGGY;
+    if (!s.held && s.run > G.LEGGY) dh += G.H_LEGGY;
     if (dh === 0 && day && !s.blocked) dh = G.H_HEAL;
     s.health = Math.max(0, Math.min(1, s.health + dh));
-    if (!s.tied && s.wire == null && s.run > G.SNAP){
+    if (!s.held && s.run > G.SNAP){
       // the unbranched run breaks off at its base
       let id = s.node, len = 0;
       while (len < s.run - 0.05 && g.nodes[id].parent >= 0){ id = g.nodes[id].parent; len += G.SEG; }

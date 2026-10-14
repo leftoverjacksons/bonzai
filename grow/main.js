@@ -730,6 +730,29 @@ function buildLeaves(startOf){
   }
 }
 
+// ---------- guy wires: a taut wire from the ring to a padded tie on the branch ----------
+const WIRE_LOOK = {fig:{wire:0x7a5a3e, pad:0x262321}, juniper:{wire:0xb8733a, pad:0xc8b07a}};  // brown aluminium + rubber; copper + raffia
+const wireMat = addSway(new THREE.MeshStandardMaterial({color:0x7a5a3e, roughness:0.35, metalness:0.8}), 'wire');
+const padMat = addSway(new THREE.MeshStandardMaterial({color:0x262321, roughness:0.8}), 'pad');
+let wireMesh = null;
+function buildWires(){
+  if (wireMesh){ scene.remove(wireMesh); wireMesh.traverse(o => o.geometry && o.geometry.dispose()); wireMesh = null; }
+  const wl = WIRE_LOOK[g.species] || WIRE_LOOK.fig;
+  wireMat.color.set(wl.wire); padMat.color.set(wl.pad);
+  if (!g.wires.length) return;
+  wireMesh = new THREE.Group();
+  for (const w of g.wires){
+    const n = g.nodes[w.node], r = g.rings[w.ring], a = P(n), b = V(r.x, r.y, r.z), dir = b.clone().sub(a), len = dir.length();
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, len, 5), wireMat);
+    line.position.copy(a).add(b).multiplyScalar(0.5); line.quaternion.setFromUnitVectors(UP, dir.normalize());
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(n.r*1.35 + 0.004, n.r*1.35 + 0.004, 0.05, 12), padMat);
+    pad.position.copy(a); pad.quaternion.setFromUnitVectors(UP, V(n.dx, n.dy, n.dz).normalize());
+    line.castShadow = pad.castShadow = true;
+    wireMesh.add(line, pad);
+  }
+  scene.add(wireMesh);
+}
+
 // ---------- rings on the ruins ----------
 let ringGroup = null;
 const ironMat = addCutaway(new THREE.MeshStandardMaterial({color:0x4d443e, roughness:0.4, metalness:0.75}));
@@ -775,6 +798,7 @@ function doTurn(action){
   buildWood(before);
   const start = id => g.nodes[id].iter*STAGE_T + hash3(id, 1, 1)*0.12;
   buildLeaves(id => id >= before ? start(id) + SEG_T*0.6 : -100);
+  buildWires();
   newSegs = disposeMesh(newSegs);
   if (added.length){ newSegs = new THREE.InstancedMesh(segGeo, barkMat, added.length); newSegs.castShadow = true; scene.add(newSegs); }
   const stages = Math.max(1, ...added.map(id => g.nodes[id].iter + 1));
@@ -816,14 +840,13 @@ const sphereGeo = new THREE.SphereGeometry(1, 14, 10);
 const mk = c => new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:0.95, depthTest:false, toneMapped:false});
 const MAT = {good:mk(0x9be37a), ok:mk(0xffd166), poor:mk(0xffa24a), bad:mk(0xff5a4a), sel:mk(0xffffff), bud:mk(0x7dffb0), wire:mk(0xe0a060)};
 const lineMat = c => new THREE.LineBasicMaterial({color:c, transparent:true, opacity:0.85, depthTest:false});
-const LINES = {slide:lineMat(0xffb14a), grow:lineMat(0xffffff), block:lineMat(0xff5a4a), cut:lineMat(0xff5a4a), wire:lineMat(0xe0a060), bud:lineMat(0x7dffb0)};
+const LINES = {slide:lineMat(0xffb14a), grow:lineMat(0xffffff), block:lineMat(0xff5a4a), cut:lineMat(0xff5a4a), wire:lineMat(0xe0a060), tie:lineMat(0xffa040), bud:lineMat(0x7dffb0)};
 function dotAt(p, r, mat){ const m = new THREE.Mesh(sphereGeo, mat); m.position.copy(p); m.scale.setScalar(r); m.renderOrder = 30; markers.add(m); return m; }
 function lineSeg(pairs, mat){
   const pts = []; for (const [a, b] of pairs) pts.push(a, b);
   const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat); l.renderOrder = 29; markers.add(l); return l;
 }
 const healthMat = h => h > 0.7 ? MAT.good : h > 0.45 ? MAT.ok : h > 0.2 ? MAT.poor : MAT.bad;
-const wireHalo = new THREE.MeshBasicMaterial({color:0xe0a060, transparent:true, opacity:0.55, depthTest:false});
 function refreshMarkers(){
   markers.traverse(o => { if (o.geometry && o.geometry !== sphereGeo) o.geometry.dispose(); });
   markers.clear();
@@ -833,11 +856,10 @@ function refreshMarkers(){
   for (const i of plan.info){
     const n = i.n, s = i.s;
     dotAt(P(n), 0.022, healthMat(s.health));
-    const d = s.wire != null ? V(g.rings[s.wire].x - n.x, g.rings[s.wire].y - n.y, g.rings[s.wire].z - n.z).normalize() : V(s.d[0], s.d[1], s.d[2]);
+    const d = V(s.d[0], s.d[1], s.d[2]);
     if (i.blockedAhead && i.slide) slidePairs.push([P(n), P(n).addScaledVector(V(i.slide[0], i.slide[1], i.slide[2]), Math.max(0.06, i.ext*GCFG.SLIDE_SPEED))]);
     else if (i.blockedAhead) blockPairs.push([P(n), P(n).addScaledVector(d, 0.1)]);
     else if (i.ext > 0.02) growPairs.push([P(n), P(n).addScaledVector(d, i.ext)]);
-    if (s.wire != null){ const r = g.rings[s.wire]; lineSeg([[P(n), V(r.x, r.y, r.z)]], LINES.wire); }
   }
   if (growPairs.length) lineSeg(growPairs, LINES.grow);
   if (slidePairs.length) lineSeg(slidePairs, LINES.slide);
@@ -845,20 +867,27 @@ function refreshMarkers(){
   for (const r of g.rings) if (r.mesh) r.mesh.material = ironMat;
   const card = g.hand[active];
   if (card === 'wire'){
-    // before a shoot is chosen, mark only the shoots that can reach a ring, and the rings they can reach
-    const valid = sel?.shoot != null ? targets(g, 'wire', 1, sel.shoot) : [];
-    if (sel?.shoot == null){
-      for (const sid of targets(g, 'wire')){
-        const n = N[shootById(g, sid).node];
-        dotAt(P(n), 0.05, wireHalo);
-        for (const rid of targets(g, 'wire', 1, sid)) valid.push(rid);
+    // before a tie point is chosen, the stretches of branch near the view that can be tied are drawn orange
+    const valid = sel?.node != null ? targets(g, 'wire', 1, sel.node) : [];
+    if (sel?.node == null){
+      const f = cam.focus, pairs = [], rings = new Set();
+      for (const id of targets(g, 'wire')){
+        const n = N[id];
+        if (Math.abs(n.y - f.y) > 2.2 || n.parent < 0) continue;
+        pairs.push([P(N[n.parent]), P(n)]);
+        for (const rid of targets(g, 'wire', 1, id)) rings.add(rid);
       }
+      if (pairs.length) lineSeg(pairs, LINES.tie);
+      valid.push(...rings);
     }
     for (const id of valid) g.rings[id].mesh.material = ringLitMat;
-    if (sel?.shoot != null){
-      const s = shootById(g, sel.shoot), n = N[s.node];
-      dotAt(P(n), 0.04, MAT.sel);
-      if (sel.ring != null){ const r = g.rings[sel.ring]; lineSeg([[P(n), V(r.x, r.y, r.z)]], LINES.wire); dotAt(V(r.x, r.y, r.z), 0.03, MAT.sel); }
+    if (sel?.node != null){
+      const n = N[sel.node];
+      dotAt(P(n), 0.035, MAT.sel);
+      if (sel.ring != null){
+        const r = g.rings[sel.ring];
+        lineSeg([[P(n), V(r.x, r.y, r.z)]], LINES.wire); dotAt(V(r.x, r.y, r.z), 0.03, MAT.sel);
+      }
     }
   }
   if (card === 'root'){
@@ -903,6 +932,10 @@ function travel(steps){
   }
   cam.node = id;
   if (g.hand[active] === 'cut' && sel && targets(g, 'cut').includes(id)){ sel.node = id; refreshMarkers(); renderUI(); }
+  if (g.hand[active] === 'wire' && sel && targets(g, 'wire').includes(id)){
+    sel.node = id; if (sel.ring != null && !targets(g, 'wire', 1, id).includes(sel.ring)) sel.ring = null;
+    refreshMarkers(); renderUI();
+  }
 }
 function setMode(mode, node=-1){
   cam.mode = mode; cam.node = node;
@@ -938,13 +971,15 @@ function onTap(cx, cy){
     if (!hit){ const all = targets(g, 'root'); hit = nearest(all.map(id => ({p:P(g.nodes[id]), id})), cx, cy, 30); }
     if (hit){ sel = {node:hit.id}; setMode('branch', hit.id); }
   } else if (card === 'wire'){
-    if (sel?.shoot != null){
-      const ring = nearest(targets(g, 'wire', 1, sel.shoot).map(id => ({p:V(g.rings[id].x, g.rings[id].y, g.rings[id].z), id})), cx, cy, 54);
-      if (ring){ sel.ring = ring.id; }
-      else { const hit = nearest(targets(g, 'wire').map(id => ({p:P(g.nodes[shootById(g, id).node]), id})), cx, cy, 44); if (hit) sel = {shoot:hit.id}; }
+    // first a tie point on a branch (swipe along the branch to move it), then a ring in reach
+    const pickTie = () => nearest(targets(g, 'wire').map(id => ({p:P(g.nodes[id]), id})), cx, cy, 44);
+    if (sel?.node != null){
+      const ring = nearest(targets(g, 'wire', 1, sel.node).map(id => ({p:V(g.rings[id].x, g.rings[id].y, g.rings[id].z), id})), cx, cy, 54);
+      if (ring) sel.ring = ring.id;
+      else { const hit = pickTie(); if (hit){ sel = {node:hit.id}; setMode('branch', hit.id); } }
     } else {
-      const hit = nearest(targets(g, 'wire').map(id => ({p:P(g.nodes[shootById(g, id).node]), id, node:shootById(g, id).node})), cx, cy, 44);
-      if (hit){ sel = {shoot:hit.id}; setMode('branch', hit.node); }
+      const hit = pickTie();
+      if (hit){ sel = {node:hit.id}; setMode('branch', hit.id); }
     }
   }
   refreshMarkers(); renderUI();
@@ -1001,7 +1036,7 @@ function startRun(seed, log=[], species='fig'){
   if (!sameRuins) resetWorld();
   syncWorld(); buildRings();
   newSegs = disposeMesh(newSegs); anim = null; animU.value = 1e4;
-  buildRoots(); buildWood(g.nodes.length); buildLeaves(null);
+  buildRoots(); buildWood(g.nodes.length); buildLeaves(null); buildWires();
   hours = hoursTo = GCFG.START_HOUR + g.turn*24/GCFG.TURNS_PER_DAY;
   cam.focus.set(g.follow.x*0.6, g.follow.y, g.follow.z*0.6);
   setMode('follow');
@@ -1028,7 +1063,7 @@ let tipFor = -1;
 function showWireable(){
   const ids = targets(g, 'wire');
   if (!ids.length) return;
-  const rect = canvas.getBoundingClientRect(), nodes = ids.map(id => g.nodes[shootById(g, id).node]);
+  const rect = canvas.getBoundingClientRect(), nodes = ids.map(id => g.nodes[id]);
   const onScreen = nodes.some(n => { const q = project(P(n)); return q && q.x > 0 && q.y > 0 && q.x < rect.width && q.y < rect.height*0.8; });
   if (onScreen) return;
   const near = nodes.sort((a, b) => cam.focus.distanceTo(P(a)) - cam.focus.distanceTo(P(b)))[0];
@@ -1072,7 +1107,7 @@ function renderUI(){
   else if (card === 'pinch'){ ready = sel?.shoot != null; prompt = ready ? '' : 'Tap a shoot tip'; }
   else if (card === 'cut'){ ready = sel?.node != null; prompt = ready ? 'Swipe to move the cut' : 'Tap a branch'; }
   else if (card === 'root'){ ready = sel?.node != null; prompt = ready ? '' : 'Tap a green bud mark'; }
-  else if (card === 'wire'){ ready = sel?.ring != null; prompt = sel?.shoot == null ? 'Tap an orange shoot' : ready ? '' : 'Tap a glowing ring'; }
+  else if (card === 'wire'){ ready = sel?.ring != null; prompt = sel?.node == null ? 'Tap an orange branch to tie' : ready ? 'Swipe to move the tie' : 'Tap a glowing ring'; }
   $('prompt').textContent = anim ? '' : prompt;
   const go = $('confirm');
   go.textContent = discard ? 'Discard' : VERB[card];
@@ -1105,7 +1140,7 @@ $('confirm').addEventListener('click', () => {
   if (canDiscard(g, i)) return doTurn({i, discard:true});
   if (card === 'pinch' && sel?.shoot != null) doTurn({i, card, shoot:sel.shoot});
   if ((card === 'cut' || card === 'root') && sel?.node != null) doTurn({i, card, node:sel.node});
-  if (card === 'wire' && sel?.ring != null) doTurn({i, card, shoot:sel.shoot, ring:sel.ring});
+  if (card === 'wire' && sel?.ring != null) doTurn({i, card, node:sel.node, ring:sel.ring});
 });
 $('cancel').addEventListener('click', () => { sel = null; setMode('follow'); render(); });
 $('followbtn').addEventListener('click', () => setMode('follow'));
@@ -1152,7 +1187,7 @@ function showOver(){
 
 // only events worth interrupting for; routine results show on the tree itself
 const MSG = {
-  dieback:'A shoot died back', jin:'A bare branch died to deadwood', snap:'A long shoot snapped off', tied:'A wired shoot is tied',
+  dieback:'A shoot died back', jin:'A bare branch died to deadwood', snap:'A long shoot snapped off', set:'A branch has set; its wire came off',
   weak:'The tree is weak', last:'Last living shoot', over:'No living shoots left',
 };
 function eventToast(e){

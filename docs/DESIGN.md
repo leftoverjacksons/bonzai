@@ -156,7 +156,7 @@ Chosen as the second species because it plays very differently from the fig: the
 | Foliage only near the branch tips, in light; bare inner wood rarely or never produces new buds. Growers keep green foliage on every branch they want to keep. | Buds wake only within the foliage (a living tip and the 3 nodes behind it). Cut and Rooting powder do nothing on bare wood. No regrowth after die-back. |
 | A branch with no foliage dies; the dead wood is resinous and lasts, and bonsai artists keep it as jin (dead branch) and shari (stripped trunk). | Living wood that no longer leads to foliage dies and stays as silver deadwood. The cut preview shows that stub in red too. |
 | Slow growing, very hardy, needs strong sun. | Growth about two thirds of the fig; smaller health losses from stone and hunger, larger from shade; slower healing. |
-| Stiff, flexible wood that takes wire well; dense, bushy growth. | Less sag, snaps later; more Wire cards; weaker apical dominance and more natural branching. |
+| Stiff, flexible wood that takes wire well; dense, bushy growth. Junipers take strong bends even in old wood but hold them only after a long time. | Less sag, snaps later; more Wire cards; weaker apical dominance and more natural branching. Wire bends thick juniper wood about as much as half as thick fig wood, more slowly, and stays on 9 turns (fig 4). Copper wire with a raffia-wrapped tie (fig: brown aluminium, rubber sleeve). Coil wiring along the branch: later. |
 | Scale foliage in flat sprays; reddish, stringy bark; blue, berry-like cones. | Fern-like sprays, blue-green; reddish bark; single blue-grey berries. |
 | Old junipers have twisted trunks: the grain spirals, live veins stand out as ridges, and bonsai keep stripped, bleached deadwood on the trunk (shari) and dead branches (jin). | Starting trunk curves more and twists; ridges and bark grain spiral with it; a silver shari strip spirals up the trunk; the starting tree carries one jin. Deadwood is bleached near-white (2026-10-14). |
 
@@ -173,7 +173,8 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 ### 4.5 Sagging and tethers
 
 - **Decided:** branches sag under their own length and foliage weight unless supported.
-- **Decided:** wiring means tying a branch to something in the ruins (an iron ring, a statue's hand, a chain, a lintel, a carved knob). The tethered branch is held up and grows toward the anchor. The tree behaves partly like a vine climbing the ruins (the original "vining bonsai, Jack and the Beanstalk" idea; real model: strangler figs on Angkor's Ta Prohm).
+- **Revised (2026-10-14):** wiring is a real guy wire (§5): it bends a branch toward a ring and comes off when the wood has set. The old behaviour (the tip grows to the ring and climbs on) is removed: it felt like a vine, not bonsai.
+- **Earlier:** wiring means tying a branch to something in the ruins (an iron ring, a statue's hand, a chain, a lintel, a carved knob). The tethered branch is held up and grows toward the anchor. The tree behaves partly like a vine climbing the ruins (the original "vining bonsai, Jack and the Beanstalk" idea; real model: strangler figs on Angkor's Ta Prohm).
 - **Proposal:** a sagging branch can droop into an obstacle and stall, so neglecting support has consequences.
 - Whole-tree balance and toppling were considered and dropped in favour of sagging and tethers (§15).
 
@@ -194,7 +195,7 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 |---|---|---|
 | **Pinch** | a shoot tip | Stops that shoot. Up to two dormant buds just behind it wake as short new shoots, so the foliage pad gets denser and more compact, and energy goes elsewhere. |
 | **Cut** | any point on a branch | Removes everything beyond that point. The nearest dormant bud just behind the cut wakes and grows in its own direction. Lost foliage means less energy, but the remaining shoots get a larger share. |
-| **Wire** | a shoot tip, then an iron ring within reach | The shoot grows toward the ring and does not sag; once it arrives it is tied and continues upward. |
+| **Wire** (guy wire, revised 2026-10-14) | a point on a branch, then an iron ring within 2 m | A taut wire from the ring to a padded tie on the branch. Each turn the stretch of branch from where it leaves its parent up to the tie bends a little toward the ring, spread over its joints so it curves; thick wood bends less, and stone stops the bend. Everything beyond the tie swings with it, so the branch's growth is redirected. The branch does not sag while wired. When the wood has set (fig 4 turns, juniper 9), the wire comes off and the shape stays. |
 | **Rooting powder** | a dormant bud on old wood | That bud wakes as a new shoot in its own direction. Direct influence without a redirect tool (added 2026-10-14). |
 
 - Deck mix (working values): Cut and Pinch most of the time, Wire and Rooting powder occasionally. A hand of three is never all the same card. If a card has no valid target it may be discarded.
@@ -272,7 +273,7 @@ Earlier list (v0 ideas, kept for reference):
 
 - **Always visible:** height, a thin health bar, a sun or moon with the hour, and a menu button. Nothing else at the top.
 - **Hand:** three card tiles at the bottom, each an icon and a name. A **?** on each tile shows what the card does; the explanation is never on screen otherwise. Played cards leave empty slots, so the hand shows how many are left without words.
-- **Wire targets (2026-10-14, after playtest):** with Wire selected, only the shoots that can reach a ring get an orange halo (visible through stone), and the rings they can reach light up. If none of them is on screen when you pick Wire, the camera rides to the nearest one.
+- **Wire targets (2026-10-14, after playtest; revised for guy wires):** with Wire selected, the stretches of branch near the view that can be tied (a free ring within reach) are drawn orange, and the rings they can reach light up. Tap a branch to place the tie, swipe along it to move the tie, then tap a lit ring. If no tie point is on screen when you pick Wire, the camera rides to the nearest one.
 - **While choosing a target:** one short hint ("Tap a shoot tip") and the confirm button, which appears only once a target is chosen, plus a ✕ to choose again.
 - **Menu:** score, best height, health, shoots, place and stratum, day and turn, the run's seed and culture blend, How to play, and New tree.
 - **Messages:** only events worth interrupting for, in a few words: a shoot died back or snapped, a wire tied, the tree is weak, the last living shoot, a new stratum. Routine results (what a pinch or cut did) are shown on the tree, not in text.
@@ -435,6 +436,7 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Minimal screen: card text behind a ?, everything else in a menu (§7.1) | Card panel with full text; full HUD | Playtest: too many words on screen. |
 | 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
 | 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
+| 2026-10-14 | Wire is a guy wire: tie point on a branch, branch bends toward the ring over turns, wire comes off when set | Tip grows to the ring and climbs (old); coil wiring; manual removal with bite scars | Closer to real bonsai and away from the vine feel; automatic removal keeps it simple for now. |
 | 2026-10-14 | Second species: juniper; choose the species when planting a new tree | Pine (candle bursts), Japanese maple, wisteria (a vine) | Most different play from the fig: no regrowth from bare wood, so every cut is planned. |
 | 2026-10-14 | Rain falls through the ruins: from open sky onto the first stone, then dripping off edges level by level; clear line of sight to the tree | Uniform rain everywhere | Playtest: rain was hard to see through; asked for physically sensible rain. |
 | 2026-10-14 | Rain and mist, visual only | Weather that changes the rules | Atmosphere first; rules only with a good reason. |
