@@ -50,7 +50,7 @@ Tone: the fantasy is played straight. It is obviously magical (a bonsai growing 
 ## 3. Core loop
 
 1. **The tree grows by itself.** **Decided (2026-10-13, revised 2026-10-14).** Every turn the whole tree takes one growth flush (§4.9). Left alone, that growth causes problems: leggy shoots, crowded foliage that shades itself, starved lower branches, shoots that run into stone. The player's work keeps it healthy and climbing.
-2. **One forced card every turn**, drawn from a queue; the **next three cards are visible** (§5). **Decided (2026-10-14)**, replacing the earlier hand of 3.
+2. **A hand of three cards, all forced** (§5). **Decided (2026-10-14, revised same day):** you draw three cards and must play all three, in any order you choose; the tree grows after each card, so order matters. A hand is **never three of the same card**. When the hand is empty, a new one is drawn. (Replaces the single forced card with a visible queue.)
 3. You must play the card; you choose only **where**. Cards are real bonsai work: **Cut, Pinch, Wire** (§5). There is **no direct redirect tool** and **no Lantern** (decided 2026-10-14). The game should feel like a **puzzle**.
 4. **The whole tree then grows, animated.** **Decided:** every turn shows the entire plant growing according to its conditions (light, space, obstacles). There is **no auto-run**: the player always advances turns by hand.
 5. The world clock advances (§8), the hand refills, and the camera follows the growth (§7).
@@ -101,11 +101,22 @@ Feedback on v1: the tree was dense and aggressive and could grow its way around 
 - **Growth only from buds.** Shoots extend from their tips. Every new segment carries a dormant bud pointing off to one side (alternate, spiral arrangement). Old wood does not sprout on its own; dormant buds wake when the player pinches or cuts nearby, and occasionally on their own along a strong shoot.
 - **Energy from lit foliage.** Each shoot's foliage pad produces energy according to how much sky it sees and how crowded it is by pads just above it (self-shading). Energy pays for extension.
 - **Apical dominance.** The highest shoots get the largest share of energy. Unmanaged, the top runs long and the lower branches starve.
-- **Shoots keep their heading.** They bend gently upward and toward light but do not route around stone. A shoot that meets stone stops and weakens; the player must cut back, pinch, or wire.
+- **Shoots keep their heading.** They bend gently upward and toward light. **Revised (2026-10-14) after playtest** (a tree trapped under a ceiling whose only gap was in a corner was more aggravating than fun):
+  - **Wider light sensing:** each shoot senses brighter space within about a metre and bends gradually toward it, not only toward open sky directly at its tip.
+  - **Sliding along stone:** a shoot that meets stone creeps along the surface toward the brighter side at reduced speed instead of stopping dead. It only loses health if it stays fully blocked for more than two turns.
+  - Both are deliberately subtle; poor choices can still trap a shoot.
 - **Health per shoot.** Shoots lose health when blocked by stone, shaded, starved, or leggy; they recover when fed and lit. At zero health a shoot dies back: its last segments become dead wood (silver-grey) and its foliage drops.
 - **Legginess, sagging and snapping.** A long run of shoot with no side branches sags downward; a very long one snaps off. Wiring to a ring prevents both.
 - **Night.** Foliage produces almost no energy at night, so growth nearly stops; damage from stone and sagging still applies.
 - **Neglect hurts a fair amount** (decided): a few poor turns lose shoots and foliage, and a badly kept tree can collapse. Recoverable with good cuts, but not free.
+
+### 4.9b Tree appearance (decided 2026-10-14 after playtest)
+
+The tree looked disconnected and "shape-shifting". Rules for how it is drawn:
+- **Stable shapes:** a branch keeps its identity and path from the moment it grows; thickness only increases, gradually. A turn changes only the new growth.
+- **Grown-in joints:** branches emerge from the parent's surface with a slight collar, so the wood reads as one solid piece.
+- **Bark at a constant scale** on trunk and twigs alike; mid-size branches are rounder.
+- **Cut ends show pale wood**, so past cuts stay visible on the tree.
 
 ### 4.10 Species (decided 2026-10-14: one at a time)
 
@@ -148,8 +159,9 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 | **Pinch** | a shoot tip | Stops that shoot. Up to two dormant buds just behind it wake as short new shoots, so the foliage pad gets denser and more compact, and energy goes elsewhere. |
 | **Cut** | any point on a branch | Removes everything beyond that point. The nearest dormant bud just behind the cut wakes and grows in its own direction. Lost foliage means less energy, but the remaining shoots get a larger share. |
 | **Wire** | a shoot tip, then an iron ring within reach | The shoot grows toward the ring and does not sag; once it arrives it is tied and continues upward. |
+| **Rooting powder** | a dormant bud on old wood | That bud wakes as a new shoot in its own direction. Direct influence without a redirect tool (added 2026-10-14). |
 
-- Deck mix (working values): Cut and Pinch most of the time, Wire occasionally. If a card has no valid target it may be passed.
+- Deck mix (working values): Cut and Pinch most of the time, Wire and Rooting powder occasionally. A hand of three is never all the same card. If a card has no valid target it may be discarded.
 - **Removed:** Lantern (decided 2026-10-14), any direct redirect tool (decided 2026-10-14).
 - Water, Rooting powder and the forced/negative cards below remain ideas for later.
 
@@ -216,7 +228,8 @@ Earlier list (v0 ideas, kept for reference):
 - **Decided (2026-10-13): branch travel.** Tap a branch to put the camera on it; swipe up and down to travel along that branch toward its tips or back toward the trunk; tap another branch to jump to it. A button returns to following the growth.
 - **Proposal:** outside branch travel, a vertical swipe scrolls the view up and down the tree; horizontal drag walks around it; pinch zooms.
 - **Decided:** the view can rotate around the vertical axis; branches and obstacles hide behind each other, and rotating to see them is part of play.
-- **Decided:** stone between the camera and the tree fades out (cut-away, as in diorama games), so the tree stays visible while still enclosed.
+- **Decided:** stone between the camera and the tree is cut away (as in diorama games), so the tree stays visible while still enclosed.
+- **Decided (2026-10-14) after playtest:** the cut-away removes **whole stone blocks**, not holes in surfaces. Surface holes made the thin walls look hollow and disorienting; removing whole blocks always shows solid stone and leaves an edge like a crumbled wall.
 - **Proposal:** drag to orbit, pinch to zoom, tap a card then tap a target. A small side silhouette or map shows the whole tree and where you are.
 
 ---
@@ -348,6 +361,11 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Score = height and health | Height only | Rewards good care, not just climbing. |
 | 2026-10-14 | Neglect hurts a fair amount | Gentle, forgiving | It should feel like a puzzle. |
 | 2026-10-14 | One species at a time, temple fig first | Several at once | Make one fun before adding others. |
+| 2026-10-14 | Hand of three, all forced, any order; never three of the same; tree grows after each card | One forced card with a visible queue | More choice in sequencing while keeping obligation. |
+| 2026-10-14 | Shoots slide along stone toward light and sense light within about a metre | Hard stop at stone | Playtest: being trapped under a ceiling with a corner gap was aggravating, not fun. |
+| 2026-10-14 | Add Rooting powder (wake a chosen dormant bud) | Graft; no direct tool | Direct influence that is real horticulture; grafting deferred. |
+| 2026-10-14 | Stable tree geometry, grown-in joints, constant bark scale, visible cut ends | Rebuild everything each turn | Playtest: tree looked disconnected and shape-shifting. |
+| 2026-10-14 | Cut-away removes whole blocks | Dithered holes in surfaces | Playtest: hollow surfaces were disorienting. |
 
 ---
 
