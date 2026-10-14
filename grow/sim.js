@@ -99,6 +99,52 @@ export function solidsNear(g, y0, y1){
   for (const m of g.modules) if (m.y1 >= y0 && m.y0 <= y1) for (const o of m.solids) out.push(o);
   return out;
 }
+// Where rain goes (visual only). A grid of columns over the ruins; in each column, the stone intervals [bottom, top].
+// Rain from the sky lands on each column's topmost surface. Water on a wet surface runs off its edges: where the
+// neighbouring column is open just below the surface, it drips from the underside of that stone down to the next
+// surface below in the neighbouring column, which becomes wet in turn, so water cascades level by level.
+// Returns the topmost surface per column and the drip lines: [x, z, along-x?, y from, y to] per edge.
+export function waterMap(g, half=4, cell=0.1, ground=-0.75){
+  const n = Math.round(2*half/cell), cols = Array.from({length:n*n}, () => []);
+  for (const m of g.modules) for (const o of m.solids){
+    const ext = o.kind === 'column' ? o.r : Math.hypot(o.hx, o.hz);
+    const i0 = Math.max(0, Math.floor((o.cx - ext + half)/cell)), i1 = Math.min(n-1, Math.floor((o.cx + ext + half)/cell));
+    const k0 = Math.max(0, Math.floor((o.cz - ext + half)/cell)), k1 = Math.min(n-1, Math.floor((o.cz + ext + half)/cell));
+    for (let k=k0;k<=k1;k++) for (let i=i0;i<=i1;i++){
+      if (insideSolid(o, -half + (i+0.5)*cell, o.cy, -half + (k+0.5)*cell, 0)) cols[k*n+i].push([o.cy - o.hy, o.cy + o.hy]);
+    }
+  }
+  // merge each column's intervals; highest first
+  for (let c=0;c<cols.length;c++){
+    const iv = cols[c].sort((a, b) => a[0] - b[0]), out = [];
+    for (const v of iv){ const l = out[out.length-1]; if (l && v[0] <= l[1] + 0.02) l[1] = Math.max(l[1], v[1]); else out.push([v[0], v[1]]); }
+    cols[c] = out.reverse();
+  }
+  const top = new Float32Array(n*n);
+  for (let c=0;c<cols.length;c++) top[c] = cols[c].length ? cols[c][0][1] : ground;
+  const free = (c, y) => !cols[c].some(v => y >= v[0] && y <= v[1]);
+  const below = (c, y) => { for (const v of cols[c]) if (v[1] < y) return v[1]; return ground; };
+  const wet = new Set(), queue = [], emit = [];
+  const wetAt = (c, j) => { const key = c*64 + j; if (!wet.has(key)){ wet.add(key); queue.push([c, j]); } };
+  for (let c=0;c<cols.length;c++) if (cols[c].length) wetAt(c, 0);
+  const D = [[1,0],[-1,0],[0,1],[0,-1]];
+  while (queue.length){
+    const [c, j] = queue.pop(), v = cols[c][j], i = c % n, k = (c - i)/n;
+    for (const [di, dk] of D){
+      const ni = i + di, nk = k + dk;
+      if (ni < 0 || nk < 0 || ni >= n || nk >= n) continue;
+      const nc = nk*n + ni;
+      const same = cols[nc].findIndex(w => Math.abs(w[1] - v[1]) < 0.03);
+      if (same >= 0){ wetAt(nc, same); continue; }  // the same flat surface: water spreads
+      if (!free(nc, v[1] - 0.03)) continue;          // a wall rises beside it: water stays
+      const to = below(nc, v[0]), tj = cols[nc].findIndex(w => w[1] === to);
+      emit.push(-half + (i + 0.5 + di*0.5)*cell, -half + (k + 0.5 + dk*0.5)*cell, di === 0 ? 1 : 0, v[0], to);
+      if (tj >= 0) wetAt(nc, tj);
+    }
+  }
+  return {half, cell, n, top, emit:new Float32Array(emit), ground};
+}
+
 // The highest stone surface at (x, z) between yBot and yTop (or yBot if none): where rain lands.
 export function surfaceBelow(g, x, z, yTop, yBot){
   let best = yBot;

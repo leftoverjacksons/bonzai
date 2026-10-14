@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { GCFG, STYLES, CARDS, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, surfaceBelow } from './sim.js';
+import { GCFG, STYLES, CARDS, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, waterMap } from './sim.js';
 
 const $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
@@ -433,7 +433,7 @@ function applyTime(){
     const grey = RAIN_GREY.clone().lerp(RAIN_GREY_NIGHT, nightK);
     u.top.value.lerp(grey, rainK*0.7); u.hor.value.lerp(grey, rainK*0.6); scene.fog.color.lerp(grey, rainK*0.6);
   }
-  scene.fog.density = 0.025 + 0.04*mistK;
+  scene.fog.density = 0.025 + 0.03*mistK;
   const useSun = el > -0.06;
   sun.position.copy(useSun ? sunDir : moonDir).multiplyScalar(18).add(sun.target.position);
   lerpHex(p.a.light, p.b.light, p.t, sun.color);
@@ -1174,9 +1174,21 @@ function stepEnv(dt, t){
 function rainingAt(turn){ return (hashInt(g.seed, 31, Math.floor(turn/4)) % 100) < 22; }
 function mistAt(turn){ const h = hourOf(turn); return Math.max(rainingAt(turn) ? 0.8 : 0, h >= 4 && h < 10 ? 0.7 : 0); }
 const DROPS = 420, SPLASH = 90;
-const dropPos = new Float32Array(DROPS*6), drops = Array.from({length:DROPS}, () => ({y:-99, floor:0, x:0, z:0, v:0}));
+const dropPos = new Float32Array(DROPS*6), drops = Array.from({length:DROPS}, () => ({y:-99, floor:0, x:0, z:0, v:0, drip:false}));
 const dropGeo = new THREE.BufferGeometry(); dropGeo.setAttribute('position', new THREE.BufferAttribute(dropPos, 3));
-const dropMat = new THREE.LineBasicMaterial({color:0xc8d8e8, transparent:true, opacity:0, depthWrite:false});
+// rain streaks fade near the camera and vanish in the line of sight to what the camera looks at, like the stone does
+const dropMat = new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false, fog:false,
+  uniforms:{color:{value:new THREE.Color(0xc8d8e8)}, opacity:{value:0}, uCam:cutU.cam, uFocus:cutU.focus, uCutR:cutU.r},
+  vertexShader:`varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
+  fragmentShader:`uniform vec3 color, uCam, uFocus; uniform float opacity, uCutR; varying vec3 vW;
+    void main(){
+      float a = opacity*smoothstep(0.7, 1.8, distance(vW, uCam));
+      vec3 ab = uFocus - uCam; float tt = dot(vW - uCam, ab)/dot(ab, ab);
+      if (tt > 0.0 && tt < 1.1){ float d = length(vW - (uCam + ab*clamp(tt, 0.0, 1.0))); a *= smoothstep(uCutR*0.5, uCutR*1.1, d); }
+      gl_FragColor = vec4(color, a);
+    }`,
+});
 const rainLines = new THREE.LineSegments(dropGeo, dropMat); rainLines.frustumCulled = false; rainLines.renderOrder = 6; scene.add(rainLines);
 const splashPos = new Float32Array(SPLASH*3).fill(-99), splashAge = new Float32Array(SPLASH).fill(9); let splashNext = 0;
 const splashGeo = new THREE.BufferGeometry(); splashGeo.setAttribute('position', new THREE.BufferAttribute(splashPos, 3));
@@ -1196,11 +1208,37 @@ for (let i=0;i<MIST;i++){
   m.userData = {a:envR()*TAU, r:0.8 + envR()*2.4, y:-1.4 + envR()*3.2, s:2.6 + envR()*2.2, sp:0.02 + envR()*0.03};
   m.renderOrder = 7; scene.add(m); mists.push(m);
 }
+// Rain follows the ruins (see waterMap in sim.js): from the sky it falls only where a column is open above the view,
+// and lands on the first stone; elsewhere water drips from the edges of wet stone and falls, accelerating, to the next
+// surface below. The map is rebuilt when the ruins grow.
+let water = null;
+function waterNow(){
+  if (!water || water.seed !== g.seed || water.mods !== g.modules.length){ water = waterMap(g); water.seed = g.seed; water.mods = g.modules.length; }
+  return water;
+}
 function respawnDrop(d, top){
-  const a = envR()*TAU, r = Math.sqrt(envR())*3.6;
-  d.x = Math.cos(a)*r + cam.focus.x*0.3; d.z = Math.sin(a)*r + cam.focus.z*0.3;
-  d.y = top - envR()*6; d.v = 6.5 + envR()*2;
-  d.floor = surfaceBelow(g, d.x, d.z, d.y, Math.max(-0.75, top - 9));
+  const w = waterNow(), lo = cam.focus.y - 5;
+  d.y = -99; d.floor = -100;
+  if (envR() < 0.55){
+    // from the sky, where the column is open above the top of the view
+    for (let tries=0; tries<6; tries++){
+      const i = Math.floor(envR()*w.n), k = Math.floor(envR()*w.n), floor = w.top[k*w.n + i];
+      if (floor > top - 0.5) continue;
+      d.x = -w.half + (i + envR())*w.cell; d.z = -w.half + (k + envR())*w.cell;
+      d.y = top - envR()*(top - Math.max(floor, lo)); d.floor = floor; d.v = 6.5 + envR()*1.5; d.drip = false;
+      return;
+    }
+  } else if (w.emit.length){
+    // a drip from the edge of wet stone within the view
+    for (let tries=0; tries<8; tries++){
+      const e = Math.floor(envR()*w.emit.length/5)*5, y0 = w.emit[e+3], y1 = w.emit[e+4];
+      if (y0 > top || y0 < lo) continue;
+      const along = (envR() - 0.5)*w.cell;
+      d.x = w.emit[e] + (w.emit[e+2] ? along : 0); d.z = w.emit[e+1] + (w.emit[e+2] ? 0 : along);
+      d.y = y0 - 0.01; d.floor = y1; d.v = 0.2 + envR()*0.6; d.drip = true;
+      return;
+    }
+  }
 }
 function stepWeather(dt, t, ease){
   if (!g) return;  // ease: real elapsed time, so fades take the same time at any frame rate
@@ -1208,9 +1246,9 @@ function stepWeather(dt, t, ease){
   rainK += (tgtRain - rainK)*Math.min(1, ease*0.35);
   mistK += (tgtMist - mistK)*Math.min(1, ease*0.25);
   wetK = rainK > wetK ? wetK + (rainK - wetK)*Math.min(1, ease*0.5) : wetK + (rainK - wetK)*Math.min(1, ease*0.04);
-  const top = cam.focus.y + 4.5, slant = 0.6 + 1.2*windU.value;
+  const top = cam.focus.y + 4.5, slant = 0.15 + 0.35*windU.value;
   rainLines.visible = rainK > 0.01;
-  dropMat.opacity = 0.55*rainK;
+  dropMat.uniforms.opacity.value = 0.5*rainK;
   if (rainLines.visible){
     for (let i=0;i<DROPS;i++){
       const d = drops[i];
@@ -1219,10 +1257,12 @@ function stepWeather(dt, t, ease){
         respawnDrop(d, top);
         if (i/DROPS > rainK){ d.y = -99; d.floor = -100; }  // thin the rain as it starts and stops
       }
-      d.y -= d.v*dt; d.x += windDir.x*slant*dt; d.z += windDir.z*slant*dt;
-      const o = i*6, len = 0.3;
-      dropPos[o] = d.x; dropPos[o+1] = d.y; dropPos[o+2] = d.z;
-      dropPos[o+3] = d.x - windDir.x*slant/d.v*len; dropPos[o+4] = d.y + len; dropPos[o+5] = d.z - windDir.z*slant/d.v*len;
+      if (d.drip) d.v = Math.min(7, d.v + 9.8*dt);  // drips start slow and accelerate under gravity
+      const drift = d.drip ? 0 : slant;
+      d.y -= d.v*dt; d.x += windDir.x*drift*dt; d.z += windDir.z*drift*dt;
+      const o = i*6, len = 0.03 + d.v*0.035;  // a streak as long as the eye blurs it
+      dropPos[o] = d.x; dropPos[o+1] = Math.max(d.y, d.floor); dropPos[o+2] = d.z;
+      const dv = Math.max(d.v, 0.5); dropPos[o+3] = d.x - windDir.x*drift/dv*len; dropPos[o+4] = Math.max(d.y, d.floor) + len; dropPos[o+5] = d.z - windDir.z*drift/dv*len;
     }
     dropGeo.attributes.position.needsUpdate = true;
   }
@@ -1234,7 +1274,7 @@ function stepWeather(dt, t, ease){
     const u = m.userData; u.a += dt*u.sp*(1 + windU.value);
     m.position.set(Math.cos(u.a)*u.r, cam.focus.y + u.y + 0.15*Math.sin(t*0.1 + u.a*3), Math.sin(u.a)*u.r);
     m.scale.setScalar(u.s);
-    m.material.opacity = 0.22*mistK*(1 - 0.5*nightK);
+    m.material.opacity = 0.14*mistK*(1 - 0.6*nightK);
     m.visible = mistK > 0.01;
   }
 }
