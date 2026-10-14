@@ -124,11 +124,28 @@ Each species is a set of growth settings plus its own character. Build one, make
 
 | Species | Character | Status |
 |---|---|---|
-| **Temple fig (Ficus)** | Vigorous and fast, so poor care shows quickly; buds readily behind cuts, so pruning is productive; glossy leaves; fits the ruins (strangler figs grip Angkor's Ta Prohm). Later: aerial roots. | **First, in progress** |
+| **Temple fig (*Ficus religiosa*)** | Vigorous and fast, so poor care shows quickly; buds behind cuts, so pruning is productive; heart-shaped leaves with a long drip tip; fits the ruins (figs grip Angkor's Ta Prohm). Later: aerial roots. See §4.10a. | **First, in progress** |
 | Juniper | Slow, dense scale-foliage pads; branches that die stay as silvery deadwood (jin and shari), which can be a feature. | Later |
 | Pine | Grows in yearly bursts ("candles") that must be pinched or it gets leggy; strong apical dominance. | Later |
 | Japanese maple | Paired (opposite) buds, so cuts split neatly in two; leaves change colour with the seasons. | Later |
 | Others (azalea, wisteria, olive, ...) | Flowering or fruiting variants with their own quirks. | Ideas |
+
+### 4.10a Temple fig notes (researched 2026-10-14)
+
+What the real tree does, and how the game uses it. Sources were general references and bonsai care guides; bonsai advice on this species is mostly hobbyist experience, so treat it as working knowledge, not authority.
+
+| Real trait | In the game |
+|---|---|
+| Leaves are borne on young shoots; older, shaded inner leaves drop, so foliage gathers at the lit outer ends. Strong apical dominance. | Leaves only on living shoots; shade and crowding weaken shoots; apical dominance (§4.9). |
+| Dormant buds on older wood wake when the tip above is removed ("back-budding"); figs do this well, *F. religiosa* moderately (less than *F. microcarpa* or *F. retusa*). Bonsai practice: let a shoot grow 6-8 leaves, cut back to 2. | Cut and Pinch wake buds behind the cut; Rooting powder wakes a chosen bud. |
+| Leaf: heart-shaped with a long "drip tip", 10-17 cm, on a long slender stalk (6-10 cm), so leaves flutter in light wind. | Leaf shape and stalk drawn this way (2026-10-14); leaves sway. |
+| New leaves open coppery pink-red and turn green. | New leaves are tinted for about three turns (2026-10-14). |
+| No visible flowers: the tiny flowers are inside the fig (syconium). Figs, about 1-1.5 cm, sit in pairs in the leaf axils and ripen from green to purple. | The old "glowing blossoms" are now pairs of figs behind some tips, ripening over about ten turns; they still glow faintly at night (2026-10-14). |
+| Dry-season deciduous or semi-evergreen. | Not used. Possible later: a dry spell. |
+| Often starts as an epiphyte on buildings or other trees; its roots grow into cracks and split stone. Not a true strangler (unlike *F. microcarpa* and *F. benghalensis*, which drop aerial roots). | Fits the ruins. Aerial roots belong to a later species (banyan-type fig) or a later fig mechanic. |
+| Wounds bleed white latex; wire marks bark quickly. | Not used; a possible visual on cuts. |
+
+Consequence for other species: back-budding is the species setting with the largest effect on play. Pines and junipers barely bud from bare old wood, so with them every Cut is close to final.
 
 ### 4.4 Stalled tips
 
@@ -152,7 +169,7 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 
 ## 5. Actions (cards)
 
-**Decided (2026-10-14), current rules:** one forced card per turn from a queue; the next three are visible. You must play it; you choose where. Real bonsai work only:
+**Decided (2026-10-14), current rules:** a hand of three cards, all forced. Play all three, in any order you like; the tree grows after each card. The hand is never three of the same card. Real bonsai work only:
 
 | Card | Target | Effect |
 |---|---|---|
@@ -163,7 +180,7 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 
 - Deck mix (working values): Cut and Pinch most of the time, Wire and Rooting powder occasionally. A hand of three is never all the same card. If a card has no valid target it may be discarded.
 - **Removed:** Lantern (decided 2026-10-14), any direct redirect tool (decided 2026-10-14).
-- Water, Rooting powder and the forced/negative cards below remain ideas for later.
+- Water and the forced/negative cards below remain ideas for later.
 
 Earlier list (v0 ideas, kept for reference):
 
@@ -237,9 +254,9 @@ Earlier list (v0 ideas, kept for reference):
 ## 8. Day and night
 
 - **Decided:** a day/night cycle runs during each run and advances with turns.
-- **TBD value:** 1 turn = 1 hour, 24 turns per day.
+- **Working value:** 12 turns per day (1 turn = 2 hours); the run starts at 08:00.
 - **Decided:** the tree must stay clearly visible at night (night is darker and moodier, never unreadable).
-- Night look (current study): moonlight, stars, fireflies, blossoms that glow, magical glow in the stone.
+- Night look: moonlight, stars, fireflies, figs that glow faintly, magical glow in the stone.
 - **Decided:** day and night change the rules a little. In prototype v0: sunlight (and therefore sap from tips) exists only by day; at night only the roots, Lanterns and the night-only Moonbloom card feed the tree, and wood upkeep still has to be paid, so sap must be saved during the day (§18).
 - **Open:** night-only hazards; whether night should be shorter or longer than day.
 
@@ -249,6 +266,11 @@ Earlier list (v0 ideas, kept for reference):
 
 - **Decided:** arcade style. A run is effectively unlimited in height, throttled by **rising difficulty**.
 - **Decided:** **strata** are predefined bands every *X* height. Each new stratum raises difficulty and can introduce new obstacle types or rules. **TBD value:** X, and what each stratum adds.
+- **Strata v1 (implemented 2026-10-14, working values to judge by playing):** X = 8 m (`STRATUM_H`). Stratum 1 is unchanged. Each stratum above it:
+  - **Ruins close in:** fewer second openings in floors and ceilings, fewer chamber windows, and from stratum 3 the main floor opening is one cell narrower (always at least two cells wide, so a route up remains). One ring fewer per module (at least one).
+  - **Water is harder to lift:** every shoot grows 15% slower per stratum (`HYDRAULIC`, never below 40% of normal). This is real biology: the height of trees is limited by how high they can lift water.
+  - The HUD shows the stratum, and a message marks entering a new one.
+  - Bot results are in §16 Q1.
 - **Decided:** the visual theme does **not** change between strata within a run (§10.3).
 - **Decided:** reaching certain height thresholds **unlocks new powers** (cards, the hold slot, other upgrades) for future runs.
 - **Decided:** trees that pass a height threshold are saved to a **gallery** where they stand side by side and can be visited.
@@ -320,8 +342,8 @@ Earlier list (v0 ideas, kept for reference):
 | M0 | Look studies | Done: ink, colour 2.5D, 3D. 3D chosen. |
 | M1 | Rendering slice | Organic trunk, enclosed labyrinth with limited light, readable night, culture blend per run. Done as `studies/3d`. |
 | M2 | Rules prototype v0 | Tree simulation with tips, vigor, growth per turn, prune / water / rooting powder / tether, stalls, stagnation and warning. Done as `play/` (§18). Feedback: felt like guiding vines; growth should be natural. |
-| M2b | Growth prototype v1 | Self-growing tree (space colonization toward light), animated growth each turn, alternating ruin modules, auto-follow camera with branch travel. **In progress** as `grow/`. Cards are re-added after the growth looks right. |
-| M2c | Bonsai prototype v2 | Established starting tree, bud-based growth with apical dominance and self-shading, health and die-back, forced card queue (Cut, Pinch, Wire), rings on the ruins, height and health score. **In progress** in `grow/`. Species: temple fig. |
+| M2b | Growth prototype v1 | Self-growing tree (space colonization toward light), animated growth each turn, alternating ruin modules, auto-follow camera with branch travel. Done; superseded by M2c in `grow/`. |
+| M2c | Bonsai prototype v2 | Established starting tree, bud-based growth with apical dominance and self-shading, health and die-back, hand of three forced cards (Cut, Pinch, Wire, Rooting powder), rings on the ruins, height and health score. **In progress** in `grow/`. Species: temple fig. |
 | M3 | Playable run | Cards in hand, labyrinth chunks, camera follow, strata and difficulty, day/night by turn, save and resume. |
 | M4 | Meta progression | Unlocks, gallery, hold slot. |
 | M5 | Polish and share | Audio, performance tiers, tutorial, sharing a tree by code, GitHub Pages release for friends. |
@@ -366,12 +388,16 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Add Rooting powder (wake a chosen dormant bud) | Graft; no direct tool | Direct influence that is real horticulture; grafting deferred. |
 | 2026-10-14 | Stable tree geometry, grown-in joints, constant bark scale, visible cut ends | Rebuild everything each turn | Playtest: tree looked disconnected and shape-shifting. |
 | 2026-10-14 | Cut-away removes whole blocks | Dithered holes in surfaces | Playtest: hollow surfaces were disorienting. |
+| 2026-10-14 | Fig details from research: heart-shaped leaves with drip tips, coppery new leaves, paired figs instead of blossoms (§4.10a) | Generic leaves and glowing blossoms | Figs have no visible flowers; make the first species true to life. |
+| 2026-10-14 | Strata v1: 8 m bands; ruins close in and shoots grow 15% slower per band (working values) | Rule changes per band; new obstacle types | Smallest change that makes height harder; grounded in the hydraulic limit on tree height. |
 
 ---
 
 ## 16. Open questions
 
-1. Height interval *X* between strata, and what each stratum adds. To be decided by playing the prototype (currently 8 m).
+1. Height interval *X* between strata, and what each stratum adds. To be decided by playing the prototype (currently 8 m; strata v1 in §9).
+   - Careful bot over 300 turns, 12 seeds (2026-10-14): turns to climb each 8 m band went from about 45, 45, 55, 70 without strata v1 to about 45, 60, 70, 90 with it; median peak 24.6 m (was 29 m).
+   - **Open, important:** a careful player still never loses (0 of 12 runs ended in 300 turns, average health about 50%). Strata now slow the climb but do not end a run. What should end a skilled run: a turn or day limit, health falling with height, a stratum event such as drought, or simply that score growth flattens?
 1b. Pacing of growth (how much the tree grows per turn) and how cards map onto the new growth model.
 2. Resolved: day and night change the rules (§8). Still open: night hazards.
 3. One rescue per run before stagnation?

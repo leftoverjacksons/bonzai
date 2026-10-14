@@ -87,15 +87,21 @@ function makeBark(){
   return {map: texFromCanvas(cc), bump: texFromCanvas(bc, false), veins: texFromCanvas(vc)};
 }
 const bark = makeBark();
+// temple fig leaf: heart-shaped blade with a long drip tip, on a slender stalk (the stalk sits at the bottom of the texture)
 const leafTex = canvasTex(64, 128, (g,w) => {
   const grad = g.createLinearGradient(0,0,w,0);
-  grad.addColorStop(0,'#d6d6d6'); grad.addColorStop(0.5,'#ffffff'); grad.addColorStop(1,'#cfcfcf');
+  grad.addColorStop(0,'#d2d2d2'); grad.addColorStop(0.5,'#ffffff'); grad.addColorStop(1,'#cbcbcb');
   g.fillStyle = grad;
-  g.beginPath(); g.moveTo(32,126); g.quadraticCurveTo(62,72,32,2); g.quadraticCurveTo(2,72,32,126); g.fill();
+  g.beginPath(); g.moveTo(32,100);
+  g.bezierCurveTo(44,110, 64,96, 60,72); g.bezierCurveTo(57,50, 42,36, 35,22); g.lineTo(32,2);
+  g.lineTo(29,22); g.bezierCurveTo(22,36, 7,50, 4,72); g.bezierCurveTo(0,96, 20,110, 32,100);
+  g.fill();
+  g.strokeStyle = '#bdbdbd'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(32,128); g.lineTo(32,98); g.stroke();
   g.strokeStyle = 'rgba(120,120,120,0.7)'; g.lineWidth = 2;
-  g.beginPath(); g.moveTo(32,124); g.lineTo(32,10); g.stroke();
+  g.beginPath(); g.moveTo(32,100); g.lineTo(32,14); g.stroke();
   g.lineWidth = 1;
-  for (let y=30;y<110;y+=14){ g.beginPath(); g.moveTo(32,y+6); g.lineTo(14,y-6); g.moveTo(32,y+6); g.lineTo(50,y-6); g.stroke(); }
+  for (let y=40;y<96;y+=12){ const k = (y-40)/56; g.beginPath(); g.moveTo(32,y+8); g.quadraticCurveTo(32-14-8*k,y+2,32-20-10*k,y-6); g.moveTo(32,y+8); g.quadraticCurveTo(32+14+8*k,y+2,32+20+10*k,y-6); g.stroke(); }
 }, false);
 const groundTex = canvasTex(512, 512, (g,w,h) => {
   const R = mulberry32(31);
@@ -182,7 +188,7 @@ leafDepth.onBeforeCompile = sh => {
   sh.uniforms.uAnim = animU;
   sh.vertexShader = 'uniform float uAnim; attribute float aStart;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed *= smoothstep(aStart, aStart + 0.45, uAnim);');
 };
-const bloomMat = new THREE.MeshStandardMaterial({color:0xffffff, emissive:0xff3d8b, emissiveIntensity:0, roughness:0.5});
+const bloomMat = new THREE.MeshStandardMaterial({color:0xffffff, emissive:0xff3d8b, emissiveIntensity:0, roughness:0.45});  // figs; they glow faintly at night
 const beamMat = new THREE.ShaderMaterial({
   transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, fog:false,
   uniforms:{color:{value:new THREE.Color(1,1,1)}, opacity:{value:0}, time:timeU},
@@ -397,7 +403,7 @@ function applyTime(){
   renderer.toneMappingExposure = p.n('exp');
   const glow = p.n('glow');
   fill.intensity = p.n('fill');
-  bloomMat.emissiveIntensity = glow*2.4;
+  bloomMat.emissiveIntensity = glow*1.6;
   barkMat.emissiveIntensity = glow*0.5;
   magic.color.copy(world.glow); magic.intensity = glow*1.3;
   if (world.glowMat) world.glowMat.emissiveIntensity = 0.25 + glow*0.45;
@@ -415,7 +421,8 @@ function applyTime(){
 // ---------- ruins: built from the simulation's modules ----------
 const STONE_TINT = [new THREE.Color(0xc2d8d0), new THREE.Color(0xe6c49c), new THREE.Color(0xf4ead6)];
 const GLOW = [new THREE.Color(0x52f2ff), new THREE.Color(0xffc24a), new THREE.Color(0x52ff9a)];
-const BLOSSOM = [new THREE.Color(0x9ff0ff), new THREE.Color(0xff5fa2), new THREE.Color(0xff9a2e)];
+// figs ripen from green to purple; they sit in pairs where leaves join the young shoots
+const FIG_GREEN = new THREE.Color(0x6f9a3a), FIG_RIPE = new THREE.Color(0x5a2348), LEAF_YOUNG = new THREE.Color(0xc0504e);
 const mixW = (arr, w) => { const c = new THREE.Color(0,0,0); arr.forEach((k,i) => c.add(k.clone().multiplyScalar(w[i]))); return c; };
 let world = {group:null, built:0, beams:[], glow:new THREE.Color(1,1,1), disposables:[]};
 
@@ -516,7 +523,7 @@ function syncWorld(){ while (world.built < g.modules.length) buildModule(g.modul
 const deadMat = new THREE.MeshStandardMaterial({color:0xcfc8ba, map:bark.map, bumpMap:bark.bump, bumpScale:1.2, roughness:0.85});
 let woodMesh = null, deadMesh = null, rootMesh = null, leafMesh = null, blossomMesh = null, newSegs = null, anim = null;
 const segGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true); segGeo.translate(0, 0.5, 0);
-const leafGeo = new THREE.PlaneGeometry(0.085, 0.15); leafGeo.translate(0, 0.075, 0);
+const leafGeo = new THREE.PlaneGeometry(0.09, 0.18); leafGeo.translate(0, 0.09, 0);
 const P = n => V(n.x, n.y, n.z);
 const disposeMesh = m => { if (m){ scene.remove(m); m.geometry.dispose(); } return null; };
 
@@ -596,12 +603,14 @@ function buildLeaves(startOf){
   const d = new THREE.Object3D(), c = new THREE.Color();
   const pad = (n, count, spread, health, st) => {
     const R = mulberry32(hashInt(g.seed, n.id, 5));
+    const young = clamp(1 - (g.turn - n.born)/3, 0, 1);  // new fig leaves open coppery red and green over a few turns
     for (let k=0;k<count;k++){
       d.position.set(n.x + (R()-.5)*spread*2, n.y + (R()-.25)*spread*1.1, n.z + (R()-.5)*spread*2);
       d.lookAt(d.position.clone().add(V((R()-.5)*2, 0.7 + R(), (R()-.5)*2)));
       d.rotateZ(R()*TAU); d.scale.setScalar(0.8 + R()*0.5); d.updateMatrix();
       mats.push(d.matrix.clone()); starts.push(st);
       c.setHSL(lerp(0.13, hue, health) + (R()-.5)*0.04, lerp(0.6, 0.55, health), clamp(0.17 + R()*0.1, 0, 0.5));
+      c.lerp(LEAF_YOUNG, young*0.5);
       cols.push(c.clone());
     }
   };
@@ -611,10 +620,15 @@ function buildLeaves(startOf){
     const st = startOf ? startOf(n.id) : -100;
     pad(n, 16, 0.12, s.health, st);
     for (let k=0;k<2 && n.parent > 0;k++){ n = N[n.parent]; pad(n, 6, 0.09, s.health, startOf ? startOf(n.id) : -100); }
-    if (hash3(s.node, 4, 2) < 0.18){
-      const R = mulberry32(hashInt(g.seed, s.node, 9)), w = g.blend, u = R(), bi = u < w[0] ? 0 : u < w[0]+w[1] ? 1 : 2;
-      const p = N[s.node];
-      blos.push([new THREE.Matrix4().compose(V(p.x + (R()-.5)*0.1, p.y + 0.05, p.z + (R()-.5)*0.1), new THREE.Quaternion(), V(1,1,1).multiplyScalar(0.9 + R()*0.5)), BLOSSOM[bi]]);
+    // a pair of figs in the leaf axils just behind some tips
+    const fn = N[s.node].parent > 0 ? N[N[s.node].parent] : null;
+    if (fn && fn.alive && hash3(fn.id, 4, 2) < 0.3){
+      const R = mulberry32(hashInt(g.seed, fn.id, 9));
+      const ripe = clamp((g.turn - fn.born)/10, 0, 1);
+      for (let k=0;k<2;k++){
+        const a = R()*TAU, sc = 0.8 + R()*0.4;
+        blos.push([new THREE.Matrix4().compose(V(fn.x + Math.cos(a)*0.04, fn.y + 0.01, fn.z + Math.sin(a)*0.04), new THREE.Quaternion(), V(sc, sc*1.15, sc)), FIG_GREEN.clone().lerp(FIG_RIPE, ripe)]);
+      }
     }
   }
   if (mats.length){
@@ -626,7 +640,7 @@ function buildLeaves(startOf){
     scene.add(leafMesh);
   }
   if (blos.length){
-    blossomMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.02, 1), bloomMat, blos.length);
+    blossomMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.016, 2), bloomMat, blos.length);
     blos.forEach(([m, col], i) => { blossomMesh.setMatrixAt(i, m); blossomMesh.setColorAt(i, col); });
     scene.add(blossomMesh);
   }
@@ -947,7 +961,7 @@ function renderUI(){
   const hr = hourOf(g.turn);
   $('clock').textContent = `Day ${dayOf(g.turn)} · ${String(Math.floor(hr)).padStart(2,'0')}:00 · ${isDay(g.turn) ? 'Day' : 'Night'} · turn ${g.turn + 1}`;
   const m = g.modules.find(m => g.follow.y >= m.y0 && g.follow.y < m.y1);
-  $('place').textContent = m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]}` : '';
+  $('place').textContent = m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]} · stratum ${m.k + 1}` : '';
 }
 $('confirm').addEventListener('click', () => {
   const card = g.hand[active], i = active;
@@ -983,6 +997,7 @@ function eventToast(e){
   if (e.type === 'cut') return toast(`Cut away ${e.removed} segment${e.removed===1?'':'s'}.` + (e.woke ? ' A bud woke behind the cut.' : ' No bud left to wake there.'));
   if (e.type === 'wire') return toast('Wired. The shoot will grow toward the ring.');
   if (e.type === 'root') return toast('A dormant bud woke.');
+  if (e.type === 'stratum') return toast(`Stratum ${e.k + 1}. Above here the openings are smaller and rings fewer.`);
   if (MSG[e.type]) toast(MSG[e.type]);
 }
 const recent = new Map();

@@ -44,6 +44,8 @@ export const GCFG = {
   CELL: 0.43,           // wall block size
   SKY_LEN: 2.6,         // light is local: stone further than this does not shade
   AMBIENT: 0.22,        // bounced light everywhere
+  HYDRAULIC: 0.15,      // each stratum up, a shoot grows this fraction slower: water is harder to lift (floor 0.4)
+  STRATUM_H: 8,         // height of a stratum (difficulty band), m; working value until it is judged by playing
   TURNS_PER_DAY: 12,
   START_HOUR: 8,
   SUN_AZ0: 0.25,
@@ -124,7 +126,7 @@ function ensureWorld(g){
 // Rings for wiring, attached where a gardener could really tie to: inner wall faces, around columns,
 // and hanging under beams and slabs. Only rings inside the tree's reach are kept.
 function placeRings(g, m, R){
-  const want = 3 + Math.floor(R()*3);
+  const want = Math.max(1, 3 + Math.floor(R()*3) - m.k);
   const cands = m.solids.filter(o => ['wall', 'column', 'beam', 'slab'].includes(o.kind));
   for (let tries=0, made=0; tries<40 && made<want && cands.length; tries++){
     const o = cands[Math.floor(R()*cands.length)];
@@ -169,7 +171,7 @@ function addNode(g, x, y, z, parent, d, o={}){
   g.nodes.push(n);
   if (parent >= 0){ const p = g.nodes[parent]; p.children.push(id); if (p.main == null) p.main = id; }
   if (y > g.maxY) g.maxY = y;
-  if (y > g.peak) g.peak = y;
+  if (y > g.peak){ if (stratumOf(y) > stratumOf(g.peak)) ev(g, 'stratum', {k:stratumOf(y)}); g.peak = y; }
   return id;
 }
 function addShoot(g, node, d, health=1){
@@ -311,7 +313,7 @@ export function planTurn(g){
     if (spent < 1e-9) break;
   }
   for (const i of info){
-    i.ext = i.ext || 0;
+    i.ext = (i.ext || 0)*Math.max(0.4, 1 - G.HYDRAULIC*stratumOf(i.n.y));
     i.share = i.ext;
     const d = i.s.d;
     i.blockedAhead = blockedAt(g, i.n.x + d[0]*G.SEG, i.n.y + d[1]*G.SEG, i.n.z + d[2]*G.SEG);
@@ -598,6 +600,9 @@ export function updateRadii(g){
   }
 }
 export const heightM = g => +g.maxY.toFixed(2);
+// strata: each band is a little harder (smaller openings, fewer windows and rings); stratum 0 is unchanged
+export const stratumOf = y => Math.max(0, Math.floor(y/G.STRATUM_H));
+const ease = (k, step) => Math.max(0, 1 - step*k);
 const lerp = (a, b, t) => a + (b - a)*t;
 
 function addModule(g){
@@ -609,14 +614,15 @@ function addModule(g){
   else if (i % 2 === 1) type = R() < 0.55 ? 'chamber' : 'tower';
   else type = R() < 0.65 ? 'terrace' : 'court';
   const style = pickStyle(g.blend, R());
-  const m = {i, type, style, y0, y1:y0, solids:[], vis:{blocks:[], balusters:[], glow:[], vines:[], windows:[]}, holes:[]};
+  const k = stratumOf(y0);
+  const m = {i, type, style, y0, y1:y0, k, solids:[], vis:{blocks:[], balusters:[], glow:[], vines:[], windows:[]}, holes:[]};
   // every upper module stands on a floor with an opening for the tree, unless the one below has a ceiling,
   // and on four corner piers, so the ruin reads as one structure
   const below = g.modules[i-1];
   if (i > 0 && below.type !== 'chamber'){
-    const n = Math.round(2*G.HALF/0.52), w = 3 + Math.floor(R()*2), hx = Math.floor((n - w)/2) + Math.round((R()-.5)*3), hz = Math.floor((n - w)/2) + Math.round((R()-.5)*3);
+    const n = Math.round(2*G.HALF/0.52), w = 3 + Math.floor(R()*2) - (k >= 2 ? 1 : 0), hx = Math.floor((n - w)/2) + Math.round((R()-.5)*3), hz = Math.floor((n - w)/2) + Math.round((R()-.5)*3);
     const holes = [{x0:hx, x1:hx+w, z0:hz, z1:hz+w}];
-    if (R() < 0.5){ const x = Math.floor(R()*(n-2)), z = Math.floor(R()*(n-2)); holes.push({x0:x, x1:x+2, z0:z, z1:z+1}); }
+    if (R() < 0.5*ease(k, 0.3)){ const x = Math.floor(R()*(n-2)), z = Math.floor(R()*(n-2)); holes.push({x0:x, x1:x+2, z0:z, z1:z+1}); }
     slabWithHoles(m, R, y0 - 0.3, holes, 0.3);
   }
   GEN[type](m, R, g);
@@ -726,14 +732,14 @@ const GEN = {
     const len = 2*G.HALF + 2*G.WALL_T;
     for (let k=0;k<4;k++){
       const ops = [];
-      if (R() < 0.8) ops.push(opening(R, len, h, 0.8, 1.4, 0.8, 1.2));
+      if (R() < Math.max(0.4, 0.8 - 0.1*m.k)) ops.push(opening(R, len, h, 0.8, 1.4, 0.8, 1.2));
       if (R() < 0.25) ops.push(opening(R, len, h, 0.9, 1.2, 1.5, 2.0, true));
       wall(m, R, k*Math.PI/2, G.HALF + G.WALL_T/2, len, m.y0, h, ops);
     }
     const n = Math.round(2*G.HALF/0.52);
     const hx = 1 + Math.floor(R()*(n-4)), hz = 1 + Math.floor(R()*(n-4));
     const holes = [{x0:hx, x1:hx + 2 + (R()<0.5?1:0), z0:hz, z1:hz + 2 + (R()<0.5?1:0)}];
-    if (R() < 0.6){ const x = Math.floor(R()*(n-1)), z = Math.floor(R()*(n-1)); holes.push({x0:x, x1:x+1+(R()<.4?1:0), z0:z, z1:z+1}); }
+    if (R() < 0.6*ease(m.k, 0.3)){ const x = Math.floor(R()*(n-1)), z = Math.floor(R()*(n-1)); holes.push({x0:x, x1:x+1+(R()<.4?1:0), z0:z, z1:z+1}); }
     slabWithHoles(m, R, m.y0 + h, holes);
     if (R() < 0.6){ const a = R()*TAU, r = 1.4 + R()*0.6; column(m, R, Math.cos(a)*r, Math.sin(a)*r, m.y0, h, 0.2); }
     if (R() < 0.5){
