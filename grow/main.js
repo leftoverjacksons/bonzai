@@ -6,7 +6,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { GCFG, STYLES, CARDS, SPECIES, cardText, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, waterMap } from './sim.js';
+import { GCFG, STYLES, CARDS, SPECIES, cardText, newGame, replayGame, play, planTurn, targets, canDiscard, shootById, previewAction, score, avgHealth, hourOf, dayOf, isDay, mulberry32, hashInt, waterMap, lossPreview } from './sim.js';
 
 const $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
@@ -1113,7 +1113,14 @@ function renderUI(){
   else if (card === 'cut'){ ready = sel?.node != null; prompt = ready ? 'Swipe to move the cut' : 'Tap a branch'; }
   else if (card === 'root'){ ready = sel?.node != null; prompt = ready ? '' : 'Tap a green bud mark'; }
   else if (card === 'wire'){ ready = sel?.ring != null; prompt = sel?.node == null ? 'Tap an orange branch to tie' : ready ? 'Swipe to move the tie' : 'Tap a glowing ring'; }
+  // warn before a cut or pinch that would push this hand over the shock limit
+  let warn = false;
+  if (ready && !anim && (card === 'cut' || card === 'pinch') && !(g.shock > 0)){
+    const lp = lossPreview(g, card, card === 'pinch' ? sel.shoot : sel.node);
+    if (lp.shock){ prompt = 'Too much at once: this will shock the tree'; warn = true; }
+  }
   $('prompt').textContent = anim ? '' : prompt;
+  $('prompt').classList.toggle('warn', warn);
   const go = $('confirm');
   go.textContent = discard ? 'Discard' : VERB[card];
   go.hidden = !(ready || discard) || !!anim;
@@ -1137,7 +1144,7 @@ function renderMenu(){
   const m = g.modules.find(m => g.follow.y >= m.y0 && g.follow.y < m.y1);
   $('m-place').textContent = (m ? {court:'Courtyard', chamber:'Chamber', tower:'Tower', terrace:'Terrace'}[m.type] + ` · ${['Atlantean','Angkor','Maya'][m.style]} · stratum ${m.k + 1}` : '')
     + (sliding ? ` · ${sliding} creeping along stone` : '') + (stuck ? ` · ${stuck} stuck` : '');
-  $('m-time').textContent = `Day ${dayOf(g.turn)}, ${String(Math.floor(hourOf(g.turn))).padStart(2,'0')}:00 · turn ${g.turn + 1}` + (rainingAt(g.turn) ? ' · rain' : mistAt(g.turn) ? ' · mist' : '');
+  $('m-time').textContent = `Day ${dayOf(g.turn)}, ${String(Math.floor(hourOf(g.turn))).padStart(2,'0')}:00 · turn ${g.turn + 1}` + (rainingAt(g.turn) ? ' · rain' : mistAt(g.turn) ? ' · mist' : '') + (g.shock > 0 ? ` · in shock (${g.shock})` : '');
   $('m-run').textContent = `Tree ${g.seed} · ` + STYLES.map((s,i) => [s, Math.round(g.blend[i]*100)]).sort((a,b) => b[1]-a[1]).map(([s,p]) => `${s} ${p}%`).join(' · ');
 }
 $('confirm').addEventListener('click', () => {
@@ -1197,6 +1204,7 @@ const MSG = {
 };
 function eventToast(e){
   if (e.type === 'stratum') return toast(`Stratum ${e.k + 1}`);
+  if (e.type === 'shock') return toast(`The tree is in shock: little growth for ${e.turns} turns`);
   if (MSG[e.type]) toast(MSG[e.type]);
 }
 const recent = new Map();

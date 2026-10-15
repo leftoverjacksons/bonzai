@@ -63,6 +63,10 @@ GCFG.TRUNK_BEND = 1;     // how far the starting trunk curves
 GCFG.TRUNK_WAVE = 1;     // how many turns its curve makes
 GCFG.JIN_DELAY = 0;      // turns a bare branch takes to die (it browns meanwhile)
 GCFG.ETIOLATE = false;   // in poor light, shoots stretch and stop branching
+GCFG.SHOCK_FRAC = 0.45;  // removing more than this share of the foliage within one hand shocks the tree
+GCFG.SHOCK_TURNS = 2;    // turns a shocked tree barely grows
+GCFG.SHOCK_GROWTH = 0.5; // growth while in shock, as a share of normal
+GCFG.PINCH_LOSS = 0;     // share of foliage a pinch counts as removed (juniper: removing tips weakens it)
 GCFG.TWIG_DROP = 8;      // turns until thin dead twigs (radius under TWIG_R) break off; thicker deadwood stays
 GCFG.TWIG_R = 0.025;
 const BASE = {...GCFG};
@@ -76,7 +80,11 @@ export const SPECIES = {
       WIRE_STEP:0.08, WIRE_MAX:1.2, WIRE_FLEX_R:0.07, WIRE_SET:9,
       // compact and bushy: short segments, slow extension, frequent branching near the tips, a long leafy stretch
       SEG:0.08, YIELD:0.2, MAX_EXT:0.07, MIN_SHARE:0.03, APICAL:1.8, NATURAL_BREAK:0.2, NATURAL_RUN:0.2, FOLIAGE_N:5, TROPISM:0.07,
-      H_BLOCKED:-0.18, H_STARVE:-0.08, H_SHADE:-0.07, H_HEAL:0.06, SHADE_GRACE:3,
+      H_BLOCKED:-0.18, H_STARVE:-0.08, H_HEAL:0.06,
+      // a sun lover that shades itself: dense pads starve their own insides unless thinned
+      CROWD_K:1.0, CROWD_R:0.38, SHADE_L:0.45, H_SHADE:-0.1, SHADE_GRACE:2,
+      // and sensitive to heavy work: a third of its foliage at once is a classic way to lose a juniper
+      SHOCK_FRAC:0.25, SHOCK_TURNS:5, SHOCK_GROWTH:0.25, PINCH_LOSS:0.1,
       JIN_DELAY:3, ETIOLATE:true,
       SAG:0.15, SNAP:2.6,
       DECK:{cut:0.3, pinch:0.3, wire:0.28, root:0.12},
@@ -85,6 +93,7 @@ export const SPECIES = {
       cut:'Cut a branch anywhere. Everything beyond is removed. A bud wakes only if foliage remains just behind the cut; otherwise the stub dies to deadwood.',
       root:'Wake a dormant bud within the foliage. Juniper buds on bare wood will not wake.',
       wire:'Tie a guy wire from a point on a branch to an iron ring. Juniper bends even where it is old and thick, but slowly, and takes long to set.',
+      pinch:'Stop a shoot; buds just behind it wake. Junipers draw strength from their growing tips: every pinch counts toward shock.',
     }},
 };
 let current = 'fig';
@@ -426,6 +435,7 @@ export function planTurn(g){
   for (const i of info){
     i.ext = (i.ext || 0)*Math.max(0.4, 1 - G.HYDRAULIC*stratumOf(i.n.y));
     if (G.ETIOLATE && i.L < G.SHADE_L) i.ext = Math.min(G.MAX_EXT*1.3, i.ext*1.3);  // stretching toward light
+    if (g.shock > 0) i.ext *= G.SHOCK_GROWTH;  // a shocked tree barely grows
     i.share = i.ext;
     const d = i.s.d;
     i.blockedAhead = blockedAt(g, i.n.x + d[0]*G.SEG, i.n.y + d[1]*G.SEG, i.n.z + d[2]*G.SEG);
@@ -624,6 +634,26 @@ function drawHand(g){
   for (let i=0;i<G.HAND;i++) h.push(drawCard(g));
   while (h.every(c => c === h[0])) h[h.length-1] = drawCard(g);
   g.hand = h;
+  g.handLoss = 0;  // foliage removed during this hand (for shock)
+}
+// Share of the foliage a pinch or cut would remove now, and whether it would push this hand over the shock limit.
+export function lossPreview(g, card, target){
+  let frac = 0;
+  if (card === 'pinch') frac = G.PINCH_LOSS;
+  if (card === 'cut'){
+    const before = foliageSet(g), gone = new Set(), stack = [target];
+    while (stack.length){ const k = stack.pop(), n = g.nodes[k]; if (!n || !n.alive) continue; gone.add(k); for (const c of n.children) stack.push(c); }
+    const after = foliageSet(g, gone);
+    let left = 0; for (const id of after) if (!gone.has(id)) left++;
+    frac = before.size ? (before.size - left)/before.size : 0;
+  }
+  const total = (g.handLoss || 0) + frac;
+  return {frac, total, shock: total > G.SHOCK_FRAC};
+}
+function addLoss(g, frac){
+  const was = (g.handLoss || 0);
+  g.handLoss = was + frac;
+  if (g.handLoss > G.SHOCK_FRAC && was <= G.SHOCK_FRAC){ g.shock = Math.max(g.shock || 0, G.SHOCK_TURNS); ev(g, 'shock', {turns:G.SHOCK_TURNS}); }
 }
 export function targets(g, card, step=0, first=null){
   if (card === 'pinch') return g.shoots.map(s => s.id);
@@ -649,6 +679,7 @@ function apply(g, a){
   if (a.card !== card) return false;
   if (card === 'pinch'){
     const s = shootById(g, a.shoot); if (!s) return false;
+    addLoss(g, G.PINCH_LOSS);
     g.shoots = g.shoots.filter(x => x !== s);
     let woke = 0, from = s.node;
     for (let k=0; k<2; k++){ const w = wakeBud(g, from, 3, Math.max(0.65, s.health)); if (w){ woke++; w.run = 0; } }
@@ -657,6 +688,7 @@ function apply(g, a){
   }
   if (card === 'cut'){
     if (!targets(g, 'cut').includes(a.node)) return false;
+    addLoss(g, lossPreview(g, 'cut', a.node).frac);
     const parent = g.nodes[a.node].parent;
     const removed = removeSubtree(g, a.node);
     const w = wakeBud(g, parent, 3, 0.8, G.BARE_BUDS ? null : foliageSet(g));
@@ -730,7 +762,7 @@ function growTurn(g){
     s.stone = (s.blocked || s.sliding) ? s.stone + 1 : 0;
     // a strong shoot occasionally breaks a side bud on its own
     const dim = G.ETIOLATE && i.L < G.SHADE_L;  // a stretching shoot in poor light does not branch
-    if (!s.blocked && i.ext >= G.MAX_EXT*0.83 && s.run >= G.NATURAL_RUN && R() < G.NATURAL_BREAK && !dim){
+    if (!s.blocked && i.ext >= G.MAX_EXT*0.83 && s.run >= G.NATURAL_RUN && R() < G.NATURAL_BREAK && !dim && !(g.shock > 0)){
       let back = s.node; for (let k=0;k<2;k++) back = g.nodes[back].parent;
       const w = wakeBud(g, back, 2, Math.max(0.7, s.health*0.9));
       if (w){ s.run = Math.min(s.run, G.NATURAL_RUN*0.5 + 0.1); ev(g, 'branch'); }
@@ -747,7 +779,7 @@ function growTurn(g){
     if (day && s.shade > G.SHADE_GRACE) dh += G.H_SHADE;
     if (day && i.ext < G.MIN_SHARE) dh += G.H_STARVE;
     if (!s.held && s.run > G.LEGGY) dh += G.H_LEGGY;
-    if (dh === 0 && day && !s.blocked) dh = G.H_HEAL;
+    if (dh === 0 && day && !s.blocked && !(g.shock > 0)) dh = G.H_HEAL;
     s.health = Math.max(0, Math.min(1, s.health + dh));
     if (!s.held && s.run > G.SNAP){
       // the unbranched run breaks off at its base
@@ -767,6 +799,7 @@ function growTurn(g){
       if (R() < G.REBUD){ const w = wakeBud(g, id, 2, 0.55); if (w) ev(g, 'rebud'); }
     }
   }
+  if (g.shock > 0) g.shock--;
   if (killBare(g)) ev(g, 'jin');
   // thin dead twigs break off after a while; thicker deadwood (jin) stays
   for (const n of g.nodes){

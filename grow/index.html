@@ -44,6 +44,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 .actbar{display:flex;align-items:center;justify-content:center;gap:8px;min-height:38px}
 #prompt{font-size:.8rem;color:var(--fg-2);text-shadow:0 1px 6px rgba(0,0,0,.8)}
 #prompt:empty{display:none}
+#prompt.warn{color:#ffb14a;font-weight:700}
 #confirm{font:inherit;font-weight:800;font-size:.92rem;color:#22180c;background:var(--accent);border:0;border-radius:999px;padding:9px 22px;cursor:pointer}
 .handrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .slot{position:relative;min-height:66px}
@@ -152,7 +153,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <li><b>Wire</b>: tie a guy wire from a point on a branch to an iron ring. Over a few turns the branch bends toward the ring (thin wood more than thick) and does not sag; when the wood has set, the wire comes off.</li>
       <li><b>Rooting powder</b>: wake a dormant bud of your choice on old wood. It grows the way it points.</li>
     </ul>
-    <p><b>Temple fig</b>: fast, and buds wake behind every cut. <b>Juniper</b>: slow, tough and stiff, but bare wood never regrows. A juniper branch left without foliage dies to silver deadwood, so a cut behind the foliage is final.</p>
+    <p><b>Shock</b>: removing too much foliage within one hand shocks the tree, and it barely grows for a few turns. The game warns you before a cut or pinch that would do it.</p>
+    <p><b>Temple fig</b>: fast, and buds wake behind every cut. <b>Juniper</b>: slow, tough and stiff, but bare wood never regrows. A juniper branch left without foliage dies to silver deadwood, so a cut behind the foliage is final. Dense juniper pads shade their own insides, so thin them; but junipers shock easily, and every pinch weakens them.</p>
     <p>Shoots bend toward brighter space nearby, and a shoot that meets stone creeps slowly along it toward the light (orange line). The highest shoots take most of the energy. Shoots weaken when they are stuck against stone for more than two turns, sit in shade, go hungry, or run long without branching; long runs sag and can snap. Weak shoots die back to dead wood. Every 8 m is a new stratum: the ruins close in and the fig grows more slowly, since water is harder to lift so high. If no shoots are left, the run ends. Score is height times average health.</p>
     <div class="legend">
       <span class="sw" style="background:#fff"></span><span>Where a shoot will grow this turn (length = its share of energy)</span>
