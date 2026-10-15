@@ -1029,7 +1029,7 @@ window.addEventListener('keydown', e => {
 });
 
 // ---------- run, saving, interface ----------
-const KEY = 'bonzai.grow.v4';  // v4: pick one of three (older saves replay differently, so they are not loaded)
+const KEY = 'bonzai.grow.v5';  // v5: back to playing all three cards (saves from other card rules replay differently, so they are not loaded)
 let g, busy = false, sel = null, active = 0;
 function save(){ store.set(KEY, {seed:g.seed, log:g.log, species:g.species}); }
 function startRun(seed, log=[], species='fig'){

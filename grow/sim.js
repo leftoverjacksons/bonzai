@@ -689,8 +689,9 @@ export function play(g, a){
   g.events = [];
   if (!apply(g, a)) return false;
   g.log.push(a);
+  g.hand.splice(a.i, 1);
   growTurn(g);
-  drawHand(g);  // pick one of three: the other two go, and three new cards come
+  if (!g.hand.length) drawHand(g);  // play all three, in any order; then three new cards
   return true;
 }
 

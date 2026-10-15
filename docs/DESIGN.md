@@ -192,7 +192,7 @@ A tip that hits an obstacle **stalls**. A stalled tip still draws vigor but does
 
 ## 5. Actions (cards)
 
-**Decided (2026-10-14, revised the same day), current rules:** you are dealt three cards and play one; the tree grows, the other two are discarded and three new cards are dealt. The hand is never three of the same card. (Before: play all three in any order.) Real bonsai work only:
+**Decided (2026-10-14; pick-one-of-three tried and reverted 2026-10-15), current rules:** a hand of three cards, all forced. Play all three, in any order; the tree grows after each card; then three new cards. The hand is never three of the same card. Real bonsai work only:
 
 | Card | Target | Effect |
 |---|---|---|
@@ -442,6 +442,7 @@ Earlier list (v0 ideas, kept for reference):
 | 2026-10-14 | Night no longer changes the rules | Growth nearly stops at night (old rule) | Real trees grow mostly at night; keep night visual until a good reason appears. Careful bot climbs faster as a result (16.2 → 21.5 m in 150 turns). |
 | 2026-10-14 | Tree sway, falling leaves, butterflies, wind gusts | Static scene | More life in the environment. |
 | 2026-10-14 | Pick one of three: three cards dealt, play one, the rest discarded | Play all three in any order | Requested: simpler, one decision per turn. |
+| 2026-10-15 | Reverted to playing all three cards | Pick one of three | Playtest: picking let you avoid every painful card; forced cards are the puzzle. |
 | 2026-10-14 | Juniper reshaped: compact and bushy, stretches in shade, bare branches die slowly; shade grace for both species | Leave as is | Playtest: juniper looked spindly and died off fast. |
 | 2026-10-14 | Root anchoring saved for a later banyan-type fig | Add it to the temple fig now (rare and slow) | The temple fig makes few aerial roots; anchoring is a strong signature for a new species. |
 | 2026-10-14 | Wire is a guy wire: tie point on a branch, branch bends toward the ring over turns, wire comes off when set | Tip grows to the ring and climbs (old); coil wiring; manual removal with bite scars | Closer to real bonsai and away from the vine feel; automatic removal keeps it simple for now. |
